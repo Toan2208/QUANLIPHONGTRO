@@ -33,26 +33,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final data = {
-        'username': _usernameController.text.trim(),
-        'password': _passwordController.text.trim(),
-        'fullName': _fullNameController.text.trim(),
+        'tenDangNhap': _usernameController.text.trim(),
+        'matKhau': _passwordController.text.trim(), // API backend sẽ mã hóa thành MatKhauHash
+        'hoTen': _fullNameController.text.trim(),
         'email': _emailController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'role': 'Customer',
+        'soDienThoai': _phoneController.text.trim(),
+        'vaiTro': 'Customer', // Mặc định đăng ký từ app là Khách hàng
         'cccd': _cccdController.text.trim(),
-        'address': _addressController.text.trim(),
+        'diaChi': _addressController.text.trim(),
       };
 
       bool success = await ApiService.register(data);
 
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đăng ký thành công! Vui lòng đăng nhập.')),
+          const SnackBar(content: Text('Đăng ký tài khoản thành công! Vui lòng đăng nhập.')),
         );
         Navigator.pop(context);
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đăng ký thất bại! Tên đăng nhập hoặc Email có thể đã tồn tại.')),
+          const SnackBar(content: Text('Đăng ký thất bại! Tên đăng nhập có thể đã tồn tại.')),
         );
       }
     } catch (e) {
@@ -70,7 +70,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Đăng Ký Tài Khoản', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Đăng Ký Tài Khoản Khách Hàng', style: TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -155,7 +155,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 onPressed: _isLoading ? null : _handleRegister,
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('ĐĂNG KÝ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    : const Text('ĐĂNG KÝ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               ),
             ),
           ],
