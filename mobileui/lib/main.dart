@@ -1,25 +1,14 @@
-import 'dart:io'; // 1. Thêm import này ở đầu file
 import 'package:flutter/material.dart';
-import 'screens/main_screen.dart';
-
-// 2. Tạo Class bỏ qua kiểm tra chứng chỉ SSL
-class MyHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-  }
-}
+// Nếu MainNavigatorScreen hoặc LoginScreen của bạn nằm ở file main_screen.dart, hãy đảm bảo import đúng:
+// import 'screens/main_screen.dart'; 
+import 'screens/login_screen.dart'; // Bắt đầu từ màn hình đăng nhập hoặc main_screen tùy logic của bạn
 
 void main() {
-  // 3. Kích hoạt bỏ qua SSL trước khi chạy ứng dụng
-  HttpOverrides.global = MyHttpOverrides();
-  
-  runApp(const MyApp());
+  runApp(const QuanLyPhongTroApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class QuanLyPhongTroApp extends StatelessWidget {
+  const QuanLyPhongTroApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -27,9 +16,35 @@ class MyApp extends StatelessWidget {
       title: 'Quản Lý Phòng Trọ',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.deepPurple,
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2563EB), // Xanh dương hiện đại, chuyên nghiệp
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF8FAFC), // Màu nền sáng sủa, sạch sẽ (Slate 50)
+        fontFamily: 'Roboto',
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFF1E293B),
+          elevation: 0,
+          centerTitle: true,
+          titleTextStyle: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+        cardTheme: CardThemeData(
+          elevation: 0,
+          color: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          ),
+        ),
       ),
-      home: const MainScreen(),
+      // Bạn có thể đổi điểm khởi đầu là LoginScreen hoặc MainScreen tùy ý
+      home: const LoginScreen(), 
     );
   }
 }
