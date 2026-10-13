@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'main_screen.dart'; // Màn hình chính của Chủ trọ
 import 'customer_home_screen.dart'; // Màn hình chính của Khách hàng
 import 'register_screen.dart'; // Màn hình đăng ký
@@ -14,32 +16,56 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+
   // Mặc định chọn vai trò là Khách hàng
-  String _selectedRole = 'Customer'; 
+  String _selectedRole = 'Customer';
   bool _isLoading = false;
   bool _obscurePassword = true;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  void _handleLogin() async {
+  Future<void> _handleLogin() async {
     final username = _usernameController.text.trim();
-    final password = _passwordController.text.trim();
+    final password = _passwordController.text;
 
     if (username.isEmpty || password.isEmpty) {
-      _showSnackBar('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!', isError: true);
+      _showSnackBar(
+        'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!',
+        isError: true,
+      );
       return;
     }
 
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _isLoading = true);
 
     try {
       final response = await ApiService.login(username, password);
 
+      if (!mounted) return;
       setState(() => _isLoading = false);
 
-      if (!mounted) return;
-
       if (response['success'] == true) {
-        final String serverRole = response['vaiTro'] ?? _selectedRole;
+        final serverRole = response['vaiTro'] as String?;
+        if (serverRole == null) {
+          _showSnackBar(
+            'Máy chủ không trả về vai trò tài khoản. Vui lòng kiểm tra AuthController.',
+            isError: true,
+          );
+          return;
+        }
+
+        // Không cho vào nhầm khu vực nếu vai trò chọn trên form không khớp tài khoản.
+        if (serverRole != _selectedRole) {
+          final requiredRole = serverRole == 'Admin'
+              ? 'Chủ trọ (Quản lý)'
+              : 'Khách hàng (Người thuê trọ)';
+          _showSnackBar(
+            'Tài khoản này thuộc vai trò "$requiredRole". '
+            'Hãy chọn đúng vai trò rồi đăng nhập lại.',
+            isError: true,
+          );
+          return;
+        }
 
         if (serverRole == 'Admin') {
           Navigator.pushReplacement(
@@ -47,7 +73,15 @@ class _LoginScreenState extends State<LoginScreen> {
             MaterialPageRoute(builder: (context) => const MainScreen()),
           );
         } else {
-          final int maKhach = response['maKhach'] ?? 0;
+          final maKhach = int.tryParse(response['maKhach']?.toString() ?? '');
+          if (maKhach == null || maKhach <= 0) {
+            _showSnackBar(
+              'API đăng nhập chưa trả về mã khách hợp lệ. '
+              'Vui lòng báo quản trị viên kiểm tra AuthController.',
+              isError: true,
+            );
+            return;
+          }
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -56,20 +90,128 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else {
-        _showSnackBar(response['message'] ?? 'Sai thông tin đăng nhập!', isError: true);
+        _showSnackBar(
+          response['message'] ?? 'Sai thông tin đăng nhập!',
+          isError: true,
+        );
       }
     } catch (e) {
-      setState(() => _isLoading = false);
       if (!mounted) return;
+      setState(() => _isLoading = false);
       _showSnackBar('Đăng nhập thất bại: $e', isError: true);
     }
   }
 
-  // Hàm giả lập đăng nhập mạng xã hội (Google / Facebook)
-  void _handleSocialLogin(String provider) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đang kết nối với tài khoản $provider...')),
-    );
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    if (_selectedRole != 'Customer') {
+      _showSnackBar(
+        'Đăng nhập Google hiện chỉ dành cho khách thuê. '
+        'Hãy chọn vai trò Khách hàng.',
+        isError: true,
+      );
+      return;
+    }
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _isLoading = true);
+    try {
+      // Dùng Google account picker qua Google Play services thay Credential Manager
+      // để tránh lỗi "No credential available" của emulator hiện tại.
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final googleCredential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      final credential = await FirebaseAuth.instance.signInWithCredential(
+        googleCredential,
+      );
+      final firebaseIdToken = await credential.user?.getIdToken();
+      if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
+        throw StateError('Firebase không trả về ID token.');
+      }
+
+      final response = await ApiService.loginCustomerWithGoogle(
+        firebaseIdToken,
+      );
+      if (!mounted) return;
+
+      if (response['success'] == true) {
+        final maKhach = int.tryParse(response['maKhach']?.toString() ?? '');
+        if (maKhach != null && maKhach > 0) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CustomerHomeScreen(maKhach: maKhach),
+            ),
+          );
+          return;
+        }
+      }
+
+      await _clearFirebaseSessionAfterFailedLogin();
+      _showSnackBar(
+        response['message']?.toString() ??
+            'Google chưa được liên kết với hồ sơ khách thuê.',
+        isError: true,
+      );
+    } on FirebaseAuthException catch (error) {
+      await _clearGoogleSignInSession();
+      await _clearFirebaseSessionAfterFailedLogin();
+      if (!mounted) return;
+      _showSnackBar(
+        error.code == 'account-exists-with-different-credential'
+            ? 'Email này đang dùng phương thức đăng nhập khác.'
+            : 'Đăng nhập Google thất bại: ${error.message ?? error.code}',
+        isError: true,
+      );
+    } catch (error) {
+      await _clearGoogleSignInSession();
+      await _clearFirebaseSessionAfterFailedLogin();
+      if (!mounted) return;
+      final errorText = error.toString();
+      final message = errorText.toLowerCase().contains('no credential')
+          ? 'Emulator chưa có tài khoản Google khả dụng. '
+                'Mở Cài đặt Android → Mật khẩu và tài khoản → Thêm tài khoản → Google, '
+                'đăng nhập tài khoản rồi thử lại.'
+          : 'Đăng nhập Google thất bại: $errorText';
+      _showSnackBar(message, isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _clearGoogleSignInSession() async {
+    try {
+      await _googleSignIn.signOut();
+    } catch (error) {
+      debugPrint('Không thể xóa phiên Google: $error');
+    }
+  }
+
+  Future<void> _clearFirebaseSessionAfterFailedLogin() async {
+    try {
+      if (FirebaseAuth.instance.currentUser != null) {
+        await FirebaseAuth.instance.signOut();
+      }
+    } on FirebaseAuthException catch (error) {
+      debugPrint(
+        'Không thể xóa phiên Firebase sau đăng nhập lỗi '
+        '(${error.code}): ${error.message}',
+      );
+    }
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -90,7 +232,10 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 16.0,
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -115,7 +260,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Text(
                   'Chào mừng trở lại!',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
@@ -145,56 +294,102 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       // Chọn vai trò đăng nhập
                       DropdownButtonFormField<String>(
-                        value: _selectedRole,
+                        initialValue: _selectedRole,
                         decoration: InputDecoration(
                           labelText: 'Đăng nhập với tư cách',
-                          labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
-                          prefixIcon: const Icon(Icons.badge_outlined, color: Color(0xFF2563EB)),
+                          labelStyle: const TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 14,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.badge_outlined,
+                            color: Color(0xFF2563EB),
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFCBD5E1),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFCBD5E1),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF2563EB),
+                              width: 2,
+                            ),
                           ),
                           filled: true,
                           fillColor: const Color(0xFFF8FAFC),
                         ),
+                        onChanged: _isLoading
+                            ? null
+                            : (value) {
+                                if (value == null) return;
+                                setState(() => _selectedRole = value);
+                              },
                         items: const [
-                          DropdownMenuItem(value: 'Customer', child: Text('Khách hàng (Người thuê trọ)')),
-                          DropdownMenuItem(value: 'Admin', child: Text('Chủ trọ (Quản lý)')),
+                          DropdownMenuItem(
+                            value: 'Customer',
+                            child: Text('Khách hàng (Người thuê trọ)'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Admin',
+                            child: Text('Chủ trọ (Quản lý)'),
+                          ),
                         ],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedRole = value!;
-                          });
-                        },
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8, left: 4),
+                        child: Text(
+                          'Vai trò phải khớp với tài khoản đã được cấp. '
+                          'Ứng dụng sẽ kiểm tra vai trò từ máy chủ trước khi đăng nhập.',
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 11,
+                            height: 1.35,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
 
                       // Ô nhập Tên đăng nhập
                       TextField(
                         controller: _usernameController,
+                        enabled: !_isLoading,
                         decoration: InputDecoration(
                           labelText: 'Tên đăng nhập',
-                          labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
-                          prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF2563EB)),
+                          labelStyle: const TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 14,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.person_outline,
+                            color: Color(0xFF2563EB),
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFCBD5E1),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFCBD5E1),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF2563EB),
+                              width: 2,
+                            ),
                           ),
                           filled: true,
                           fillColor: const Color(0xFFF8FAFC),
@@ -205,14 +400,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       // Ô nhập Mật khẩu
                       TextField(
                         controller: _passwordController,
+                        enabled: !_isLoading,
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
                           labelText: 'Mật khẩu',
-                          labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
-                          prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF2563EB)),
+                          labelStyle: const TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 14,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.lock_outline,
+                            color: Color(0xFF2563EB),
+                          ),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              _obscurePassword
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
                               color: const Color(0xFF64748B),
                             ),
                             onPressed: () {
@@ -223,15 +427,22 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFCBD5E1),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFCBD5E1),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF2563EB),
+                              width: 2,
+                            ),
                           ),
                           filled: true,
                           fillColor: const Color(0xFFF8FAFC),
@@ -246,7 +457,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2563EB),
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             elevation: 0,
                           ),
                           onPressed: _isLoading ? null : _handleLogin,
@@ -254,9 +467,18 @@ class _LoginScreenState extends State<LoginScreen> {
                               ? const SizedBox(
                                   width: 24,
                                   height: 24,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
                                 )
-                              : const Text('Đăng nhập', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              : const Text(
+                                  'Đăng nhập',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
                       ),
                     ],
@@ -270,44 +492,43 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Expanded(child: Divider(color: Color(0xFFCBD5E1))),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('Hoặc tiếp tục với', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                      child: Text(
+                        'Hoặc tiếp tục với',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
                     const Expanded(child: Divider(color: Color(0xFFCBD5E1))),
                   ],
                 ),
                 const SizedBox(height: 20),
 
-                // Nút Đăng nhập nhanh qua Google & Facebook
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          side: const BorderSide(color: Color(0xFFCBD5E1)),
-                          backgroundColor: Colors.white,
-                        ),
-                        onPressed: () => _handleSocialLogin('Google'),
-                        icon: const Icon(Icons.g_mobiledata, size: 28, color: Colors.red),
-                        label: const Text('Google', style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.w600)),
-                      ),
+                // Google OAuth chỉ xác thực danh tính; backend vẫn phải xác minh
+                // ID token và tìm hồ sơ khách thuê đã tồn tại.
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          side: const BorderSide(color: Color(0xFFCBD5E1)),
-                          backgroundColor: Colors.white,
-                        ),
-                        onPressed: () => _handleSocialLogin('Facebook'),
-                        icon: const Icon(Icons.facebook, size: 20, color: Color(0xFF1877F2)),
-                        label: const Text('Facebook', style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.w600)),
-                      ),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    backgroundColor: Colors.white,
+                  ),
+                  onPressed: _isLoading ? null : _handleGoogleLogin,
+                  icon: const Icon(
+                    Icons.g_mobiledata,
+                    size: 28,
+                    color: Colors.red,
+                  ),
+                  label: const Text(
+                    'Tiếp tục với Google (khách thuê)',
+                    style: TextStyle(
+                      color: Color(0xFF1E293B),
+                      fontWeight: FontWeight.w600,
                     ),
-                  ],
+                  ),
                 ),
                 const SizedBox(height: 24),
 
@@ -315,18 +536,26 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Chưa có tài khoản? ', style: TextStyle(color: Color(0xFF64748B))),
+                    const Text(
+                      'Chưa có tài khoản? ',
+                      style: TextStyle(color: Color(0xFF64748B)),
+                    ),
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const RegisterScreen(),
+                          ),
                         );
                       },
-                    
+
                       child: const Text(
                         'Đăng ký ngay',
-                        style: TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Color(0xFF2563EB),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],

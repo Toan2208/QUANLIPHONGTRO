@@ -14,41 +14,29 @@ class RoomDetailScreen extends StatefulWidget {
 class _RoomDetailScreenState extends State<RoomDetailScreen> {
   Color _getStatusColor(String? status) {
     switch (status) {
-      case 'Available':
-        return Colors.green;
-      case 'Occupied':
-        return Colors.blueAccent;
-      case 'Booked':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _getStatusText(String? status) {
-    switch (status) {
-      case 'Available':
-        return 'Còn trống';
-      case 'Occupied':
-        return 'Đang ở';
-      case 'Booked':
-        return 'Đã cọc';
-      default:
-        return 'Bảo trì';
+      case 'Trống': return Colors.green;
+      case 'Đang thuê': return Colors.blueAccent;
+      case 'Đã đặt cọc': return Colors.orange;
+      case 'Bảo trì': return Colors.redAccent;
+      default: return Colors.grey;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final room = widget.room;
-    final status = room['status'] ?? 'Available';
-    final statusColor = _getStatusColor(status);
+    final tenPhong = room['tenPhong'] ?? room['roomNumber'] ?? 'Phòng';
+    final tang = room['tang'] ?? room['floor'] ?? 1;
+    final giaThue = room['giaThue'] ?? room['basePrice'] ?? 0;
+    final trangThai = room['trangThai'] ?? room['status'] ?? 'Trống';
+    final moTa = room['moTa'] ?? 'Không có mô tả';
+    final statusColor = _getStatusColor(trangThai);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(
-          'Chi Tiết Phòng ${room['roomNumber'] ?? ''}',
+          'Chi Tiết $tenPhong',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1E293B)),
         ),
         backgroundColor: Colors.white,
@@ -82,7 +70,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Phòng ${room['roomNumber'] ?? ''}',
+                        tenPhong,
                         style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
                       ),
                       Container(
@@ -92,21 +80,21 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          _getStatusText(status),
+                          trangThai,
                           style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                       ),
                     ],
                   ),
                   const Divider(height: 32, color: Color(0xFFE2E8F0)),
-                  _buildInfoRow(Icons.layers_outlined, 'Tầng số', '${room['floor'] ?? 1}'),
+                  _buildInfoRow(Icons.layers_outlined, 'Tầng số', 'Tầng $tang'),
                   const SizedBox(height: 16),
-                  _buildInfoRow(Icons.category_outlined, 'Loại phòng', room['typeName'] ?? 'Phòng tiêu chuẩn'),
+                  _buildInfoRow(Icons.description_outlined, 'Mô tả tiện ích', moTa),
                   const SizedBox(height: 16),
                   _buildInfoRow(
                     Icons.payments_outlined,
-                    'Giá thuê / tháng',
-                    '${room['basePrice'] ?? 0} VNĐ',
+                    'Giá thuê hàng tháng',
+                    '$giaThue VNĐ',
                     isHighlight: true,
                   ),
                 ],
@@ -114,8 +102,8 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Khu vực xử lý nghiệp vụ theo trạng thái phòng
-            if (status == 'Available') ...[
+            // Khu vực xử lý nghiệp vụ theo trạng thái thực tế
+            if (trangThai == 'Trống') ...[
               SizedBox(
                 height: 50,
                 child: ElevatedButton.icon(
@@ -170,28 +158,28 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                   },
                 ),
               ),
-            ] else if (status == 'Occupied') ...[
+            ] else if (trangThai == 'Đang thuê') ...[
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: Colors.blue.shade50,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.shade200),
+                  border: Border.all(color: Colors.blue.shade200),
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.info_outline_rounded, color: Colors.redAccent),
+                    Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB)),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Phòng này đang có người ở. Để trả phòng, vui lòng vào tab "Hợp đồng" và thực hiện thao tác trả phòng.',
-                        style: TextStyle(color: Color(0xFF991B1B), fontSize: 13),
+                        'Phòng này đang có khách thuê ở. Để thanh lý trả phòng, vui lòng quản lý trực tiếp thông qua danh sách hợp đồng.',
+                        style: TextStyle(color: Color(0xFF1E3A8A), fontSize: 13),
                       ),
                     ),
                   ],
                 ),
               ),
-            ] else if (status == 'Booked') ...[
+            ] else if (trangThai == 'Đã đặt cọc') ...[
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -205,7 +193,8 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Phòng này hiện đã được đặt cọc giữ chỗ.", style: TextStyle(color: Color(0xFF9A3412), fontSize: 13)',
+                        'Phòng này hiện đã được khách đặt cọc giữ chỗ chờ ngày dọn vào.',
+                        style: TextStyle(color: Color(0xFF9A3412), fontSize: 13),
                       ),
                     ),
                   ],
@@ -218,7 +207,6 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     );
   }
 
-  // Widget hỗ trợ hiển thị dòng thông tin gọn gàng
   Widget _buildInfoRow(IconData icon, String label, String value, {bool isHighlight = false}) {
     return Row(
       children: [
