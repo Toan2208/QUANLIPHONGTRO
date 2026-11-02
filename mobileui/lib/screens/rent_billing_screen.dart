@@ -34,6 +34,9 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
   bool _loadingInvoiceViolations = false;
   bool _submitting = false;
   bool _readingElectricMeter = false;
+  bool _loadingPreviousReadings = false;
+  String? _previousReadingsInfo;
+  int _previousReadingsRequest = 0;
   Completer<void>? _meterOcrAbort;
   String? _loadError;
   String? _customerLoadError;
@@ -61,6 +64,9 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
   }
 
   void _clearUtilityReadings() {
+    _previousReadingsRequest++;
+    _loadingPreviousReadings = false;
+    _previousReadingsInfo = null;
     _electricOldController.clear();
     _electricNewController.clear();
     _electricPriceController.clear();
@@ -260,25 +266,53 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
         oldReading: oldReading,
         month: _fromDate.month,
         year: _fromDate.year,
-        timeout: const Duration(seconds: 35),
+        timeout: const Duration(seconds: 145),
         abortTrigger: abortSignal.future,
       ).timeout(
-        const Duration(seconds: 40),
+        const Duration(seconds: 150),
         onTimeout: () {
           if (!abortSignal.isCompleted) abortSignal.complete();
           return {
             'success': false,
             'message':
-                'OCR vẫn chưa phản hồi sau 40 giây. '
+                'OCR vẫn chưa phản hồi sau 150 giây. '
                 'Kiểm tra Flask/Ollama hoặc nhập chỉ số điện thủ công.',
           };
         },
       );
       if (!mounted) return;
       if (result['success'] == true) {
-        setState(() {
-          _electricNewController.text = (result['chiSoMoi'] as num).toString();
-        });
+        final candidate = (result['chiSoMoi'] as num).toString();
+        final confirmed = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Xác nhận chỉ số OCR'),
+            content: Text(
+              'Chỉ số đề xuất: $candidate kWh\n'
+              'Độ tin cậy: ${result['confidence']}\n'
+              '${result['note'] ?? ''}\n\n'
+              'Hãy đối chiếu ảnh đồng hồ. Chỉ chọn Sử dụng nếu chính xác.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Không sử dụng'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Sử dụng chỉ số'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        if (confirmed == true) {
+          setState(() => _electricNewController.text = candidate);
+        } else {
+          _showMessage('Đã bỏ qua kết quả OCR. Em có thể nhập chỉ số thủ công.');
+          return;
+        }
       }
       _showMessage(
         result['success'] == true
@@ -358,6 +392,7 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
         final contractId = _contractId(active.first);
         if (contractId != null) {
           await _loadPendingInvoiceViolations(contractId);
+          unawaited(_loadPreviousUtilityReadings(contractId));
         }
       }
     } catch (error) {
@@ -365,6 +400,75 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
       setState(() {
         _loadError = error.toString();
         _loadingContracts = false;
+      });
+    }
+  }
+
+  // Lấy chỉ số cuối tháng liền trước kỳ hóa đơn, đúng phòng và loại điện/nước.
+  Future<void> _loadPreviousUtilityReadings(int contractId) async {
+    final requestId = ++_previousReadingsRequest;
+    final month = _fromDate.month;
+    final year = _fromDate.year;
+    final contract = _activeContracts.where(
+      (item) => _contractId(item) == contractId,
+    ).firstOrNull;
+    if (contract == null) return;
+    final roomId = int.tryParse(
+      (_value(contract, 'maPhong', 'MaPhong') ?? '').toString(),
+    );
+    if (roomId == null || roomId <= 0) return;
+
+    if (mounted) {
+      setState(() {
+        _loadingPreviousReadings = true;
+        _previousReadingsInfo = null;
+      });
+    }
+
+    try {
+      final readings = await Future.wait<double?>([
+        ApiService.getPreviousElectricReading(roomId, month: month, year: year),
+        ApiService.getPreviousWaterReading(roomId, month: month, year: year),
+      ]);
+      if (!mounted ||
+          requestId != _previousReadingsRequest ||
+          _selectedContractId != contractId ||
+          _fromDate.month != month ||
+          _fromDate.year != year) return;
+
+      final electricity = readings[0];
+      final water = readings[1];
+      final previousDate = DateTime(year, month - 1, 1);
+      String formatReading(double value) =>
+          value == value.truncateToDouble()
+              ? value.toInt().toString()
+              : value.toString();
+
+      setState(() {
+        if (electricity != null && _electricOldController.text.trim().isEmpty) {
+          _electricOldController.text = formatReading(electricity);
+        }
+        if (water != null && _waterOldController.text.trim().isEmpty) {
+          _waterOldController.text = formatReading(water);
+        }
+        _previousReadingsInfo = electricity == null && water == null
+            ? 'Không có chỉ số điện/nước tháng ${previousDate.month}/${previousDate.year}. Vui lòng nhập thủ công.'
+            : 'Đã lấy chỉ số tháng ${previousDate.month}/${previousDate.year}: '
+              'điện ${electricity == null ? "chưa có" : formatReading(electricity)}, '
+              'nước ${water == null ? "chưa có" : formatReading(water)}. '
+              'Vui lòng kiểm tra trước khi lập hóa đơn.';
+        _loadingPreviousReadings = false;
+      });
+    } catch (error) {
+      if (!mounted ||
+          requestId != _previousReadingsRequest ||
+          _selectedContractId != contractId ||
+          _fromDate.month != month ||
+          _fromDate.year != year) return;
+      setState(() {
+        _loadingPreviousReadings = false;
+        _previousReadingsInfo =
+            'Không tải được chỉ số cũ ($error). Có thể nhập thủ công.';
       });
     }
   }
@@ -528,6 +632,10 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
       _fromDate = start;
       _throughDate = end;
     });
+    final contractId = _selectedContractId;
+    if (contractId != null) {
+      unawaited(_loadPreviousUtilityReadings(contractId));
+    }
   }
 
   Future<void> _createInvoice() async {
@@ -751,18 +859,18 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
         : 0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: const Text(
           'Lập tiền thuê theo ngày',
           style: TextStyle(
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         actions: [
           IconButton(
@@ -840,6 +948,7 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
               });
               _setPeriodForContract(selected);
               unawaited(_loadPendingInvoiceViolations(value));
+              unawaited(_loadPreviousUtilityReadings(value));
             },
           ),
         ),
@@ -900,10 +1009,22 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_loadingPreviousReadings) ...[
+                const LinearProgressIndicator(),
+                const SizedBox(height: 8),
+                const Text('Đang lấy chỉ số điện/nước kỳ trước...'),
+                const SizedBox(height: 12),
+              ] else if (_previousReadingsInfo != null) ...[
+                Text(
+                  _previousReadingsInfo!,
+                  style: const TextStyle(color: Color(0xFF15803D), fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+              ],
               const Text(
                 'Điện (kWh)',
                 style: TextStyle(
-                  color: Color(0xFF1E293B),
+                  color: Color(0xFF172554),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -965,7 +1086,7 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
                   children: [
                     const Expanded(
                       child: Text(
-                        'Đang xử lý ảnh trên máy chủ OCR (tối đa 40 giây).',
+                        'Đang xử lý ảnh trên máy chủ OCR (tối đa 150 giây).',
                         style: TextStyle(
                           color: Color(0xFF64748B),
                           fontSize: 12,
@@ -1016,7 +1137,7 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
               const Text(
                 'Nước (m³)',
                 style: TextStyle(
-                  color: Color(0xFF1E293B),
+                  color: Color(0xFF172554),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1277,13 +1398,13 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
           children: [
             Row(
               children: [
-                Icon(icon, color: const Color(0xFF2563EB), size: 20),
+                Icon(icon, color: const Color(0xFF4F46E5), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     title,
                     style: const TextStyle(
-                      color: Color(0xFF1E293B),
+                      color: Color(0xFF172554),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1364,7 +1485,7 @@ class _RentBillingScreenState extends State<RentBillingScreen> {
               value,
               textAlign: TextAlign.end,
               style: const TextStyle(
-                color: Color(0xFF1E293B),
+                color: Color(0xFF172554),
                 fontWeight: FontWeight.w600,
               ),
             ),

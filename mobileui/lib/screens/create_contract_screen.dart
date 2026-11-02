@@ -3,8 +3,14 @@ import '../services/api_service.dart';
 
 class CreateContractScreen extends StatefulWidget {
   final Map<String, dynamic> room;
+  // Truyền phiếu đặt phòng khi mở màn hình từ Quản lý đặt chỗ.
+  final Map<String, dynamic>? booking;
 
-  const CreateContractScreen({super.key, required this.room});
+  const CreateContractScreen({
+    super.key,
+    required this.room,
+    this.booking,
+  });
 
   @override
   State<CreateContractScreen> createState() => _CreateContractScreenState();
@@ -22,13 +28,42 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
   bool _loadingCustomers = true;
   String? _customerLoadError;
 
+  dynamic _value(Map? source, List<String> keys) {
+    if (source == null) return null;
+    for (final key in keys) {
+      if (source[key] != null) return source[key];
+    }
+    return null;
+  }
+
+  int? _asId(dynamic value) {
+    final id = int.tryParse(value?.toString() ?? '');
+    return id != null && id > 0 ? id : null;
+  }
+
+  int? get _bookingCustomerId => _asId(_value(widget.booking,
+      ['maKhach', 'MaKhach', 'customerId', 'CustomerId']));
+
+  int? get _roomId => _asId(_value(widget.room,
+      ['maPhong', 'MaPhong', 'roomId', 'RoomId']));
+
+  double? _amount(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse((value ?? '').toString().replaceAll(',', '').trim());
+  }
+
+  double get _paidDeposit => _amount(_value(widget.booking,
+      ['tienCoc', 'TienCoc', 'deposit'])) ?? 0;
+
+  String _money(num value) => '${value.toStringAsFixed(0)} đ';
+
   @override
   void initState() {
     super.initState();
     final initialPrice =
-        widget.room['basePrice'] ?? widget.room['giaThue'] ?? 0;
+        _value(widget.room, ['basePrice', 'giaThue', 'GiaThue']) ?? 0;
     _rentCtrl.text = initialPrice.toString();
-    _depositCtrl.text = initialPrice.toString();
+    _depositCtrl.text = (_paidDeposit > 0 ? _paidDeposit : (_amount(initialPrice) ?? 0)).toStringAsFixed(0);
     _loadCustomers();
   }
 
@@ -52,9 +87,12 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
             .toList();
         setState(() {
           _customers = validCustomers;
-          if (_customers.isNotEmpty) {
-            _selectedCustomerId = _customerId(_customers.first);
-          }
+          // Không tự chọn khách đầu tiên: tránh lập nhầm hợp đồng.
+          final expectedId = _bookingCustomerId;
+          _selectedCustomerId = expectedId != null &&
+                  validCustomers.any((c) => _customerId(c) == expectedId)
+              ? expectedId
+              : null;
           _loadingCustomers = false;
         });
       }
@@ -100,16 +138,9 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
   }
 
   Future<void> _handleCreateContract() async {
-    final roomId = int.tryParse(
-      (widget.room['maPhong'] ??
-              widget.room['MaPhong'] ??
-              widget.room['roomId'] ??
-              widget.room['RoomId'] ??
-              '')
-          .toString(),
-    );
-    final rent = double.tryParse(_rentCtrl.text.trim());
-    final deposit = double.tryParse(_depositCtrl.text.trim());
+    final roomId = _roomId;
+    final rent = _amount(_rentCtrl.text);
+    final deposit = _amount(_depositCtrl.text);
     if (roomId == null || roomId <= 0) {
       _showSnackBar(
         'Phòng không có mã hợp lệ, không thể lập hợp đồng.',
@@ -122,18 +153,28 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
       return;
     }
 
-    if (rent == null || rent <= 0 || deposit == null || deposit < 0) {
+    if (_bookingCustomerId != null && _selectedCustomerId != _bookingCustomerId) {
+      _showSnackBar('Khách thuê phải trùng với người đã đặt cọc.', isError: true);
+      return;
+    }
+    if (rent == null || !rent.isFinite || rent <= 0 ||
+        deposit == null || !deposit.isFinite || deposit < 0) {
       _showSnackBar(
         'Tiền thuê phải lớn hơn 0 và tiền cọc không được âm.',
         isError: true,
       );
       return;
     }
-    if (_endDate.isBefore(_startDate)) {
+    if (!_endDate.isAfter(_startDate)) {
       _showSnackBar(
-        'Ngày kết thúc phải bằng hoặc sau ngày bắt đầu hợp đồng.',
+        'Ngày kết thúc phải sau ngày bắt đầu hợp đồng.',
         isError: true,
       );
+      return;
+    }
+
+    if (widget.booking != null && deposit < _paidDeposit) {
+      _showSnackBar('Tiền cọc hợp đồng không được nhỏ hơn cọc đã thu.', isError: true);
       return;
     }
 
@@ -147,7 +188,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
         'ngayKetThuc': _endDate.toIso8601String().split('T')[0],
         'giaThueThang': rent,
         'tienCoc': deposit,
-        'trangThai': 'Active',
+        'trangThai': 'Đang hiệu lực',
       };
 
       final result = await ApiService.createContract(payload);
@@ -185,26 +226,22 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final roomNumber =
-        widget.room['roomNumber'] ??
-        widget.room['RoomNumber'] ??
-        widget.room['tenPhong'] ??
-        widget.room['TenPhong'] ??
-        '';
+    final roomNumber = _value(widget.room,
+            ['roomNumber', 'RoomNumber', 'tenPhong', 'TenPhong']) ?? '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: Text(
           'Lập hợp đồng $roomNumber',
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18,
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         centerTitle: true,
       ),
@@ -213,6 +250,36 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (widget.booking != null) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFC7D2FE)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(children: [
+                      Icon(Icons.verified_rounded, color: Color(0xFF4F46E5)),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Nhận phòng từ phiếu đặt cọc',
+                          style: TextStyle(fontWeight: FontWeight.bold,
+                              color: Color(0xFF172554)))),
+                    ]),
+                    const SizedBox(height: 8),
+                    Text('Tiền cọc đã thu: ${_money(_paidDeposit)}'),
+                    const Text('Hệ thống chỉ ghi thu phần cọc bổ sung khi lập hợp đồng.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF475569))),
+                    if (_bookingCustomerId != null)
+                      Text('Mã khách đặt phòng: #$_bookingCustomerId',
+                          style: const TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -228,7 +295,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
-                      color: Color(0xFF1E293B),
+                      color: Color(0xFF172554),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -258,8 +325,16 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                         fontSize: 13,
                       ),
                     )
-                  else
+                  else ...[
+                    if (_bookingCustomerId != null &&
+                        !_customers.any((c) => _customerId(c) == _bookingCustomerId))
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text('Không tìm thấy khách đã đặt cọc trong danh sách. Hãy kiểm tra dữ liệu khách thuê.',
+                            style: TextStyle(color: Colors.redAccent)),
+                      ),
                     DropdownButtonFormField<int>(
+                      key: ValueKey(_selectedCustomerId),
                       initialValue: _selectedCustomerId,
                       isExpanded: true,
                       decoration: _inputDecoration('', Icons.person_outline),
@@ -280,9 +355,11 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                           ),
                         );
                       }).toList(),
-                      onChanged: (val) =>
-                          setState(() => _selectedCustomerId = val),
+                      onChanged: _bookingCustomerId != null
+                          ? null
+                          : (val) => setState(() => _selectedCustomerId = val),
                     ),
+                  ],
                   const SizedBox(height: 20),
 
                   const Text(
@@ -290,7 +367,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
-                      color: Color(0xFF1E293B),
+                      color: Color(0xFF172554),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -309,7 +386,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
-                      color: Color(0xFF1E293B),
+                      color: Color(0xFF172554),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -328,7 +405,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
-                      color: Color(0xFF1E293B),
+                      color: Color(0xFF172554),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -340,7 +417,12 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                         firstDate: DateTime(2020),
                         lastDate: DateTime(2100),
                       );
-                      if (picked != null) setState(() => _startDate = picked);
+                      if (picked != null) setState(() {
+                        _startDate = picked;
+                        if (!_endDate.isAfter(picked)) {
+                          _endDate = picked.add(const Duration(days: 365));
+                        }
+                      });
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -348,7 +430,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                         vertical: 14,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: const Color(0xFFF5F7FC),
                         border: Border.all(color: const Color(0xFFCBD5E1)),
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -359,12 +441,12 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                             '${_startDate.day}/${_startDate.month}/${_startDate.year}',
                             style: const TextStyle(
                               fontSize: 15,
-                              color: Color(0xFF1E293B),
+                              color: Color(0xFF172554),
                             ),
                           ),
                           const Icon(
                             Icons.calendar_today_rounded,
-                            color: Color(0xFF2563EB),
+                            color: Color(0xFF4F46E5),
                             size: 20,
                           ),
                         ],
@@ -378,7 +460,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
-                      color: Color(0xFF1E293B),
+                      color: Color(0xFF172554),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -386,10 +468,10 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                     onTap: () async {
                       final picked = await showDatePicker(
                         context: context,
-                        initialDate: _endDate.isBefore(_startDate)
-                            ? _startDate
+                        initialDate: !_endDate.isAfter(_startDate)
+                            ? _startDate.add(const Duration(days: 1))
                             : _endDate,
-                        firstDate: _startDate,
+                        firstDate: _startDate.add(const Duration(days: 1)),
                         lastDate: DateTime(2100),
                       );
                       if (picked != null) setState(() => _endDate = picked);
@@ -400,7 +482,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                         vertical: 14,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: const Color(0xFFF5F7FC),
                         border: Border.all(color: const Color(0xFFCBD5E1)),
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -411,12 +493,12 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                             '${_endDate.day}/${_endDate.month}/${_endDate.year}',
                             style: const TextStyle(
                               fontSize: 15,
-                              color: Color(0xFF1E293B),
+                              color: Color(0xFF172554),
                             ),
                           ),
                           const Icon(
                             Icons.event_rounded,
-                            color: Color(0xFF2563EB),
+                            color: Color(0xFF4F46E5),
                             size: 20,
                           ),
                         ],
@@ -431,7 +513,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
               height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
+                  backgroundColor: const Color(0xFF4F46E5),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -473,7 +555,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
     return InputDecoration(
       hintText: hint,
       hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-      prefixIcon: Icon(icon, color: const Color(0xFF2563EB), size: 20),
+      prefixIcon: Icon(icon, color: const Color(0xFF4F46E5), size: 20),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
@@ -484,10 +566,10 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+        borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 2),
       ),
       filled: true,
-      fillColor: const Color(0xFFF8FAFC),
+      fillColor: const Color(0xFFF5F7FC),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
     );
   }

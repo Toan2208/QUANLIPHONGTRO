@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'main_screen.dart'; // Màn hình chính của Chủ trọ
 import 'customer_home_screen.dart'; // Màn hình chính của Khách hàng
 import 'register_screen.dart'; // Màn hình đăng ký
@@ -21,7 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String _selectedRole = 'Customer';
   bool _isLoading = false;
   bool _obscurePassword = true;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+
 
   Future<void> _handleLogin() async {
     final username = _usernameController.text.trim();
@@ -109,111 +107,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _handleGoogleLogin() async {
-    if (_selectedRole != 'Customer') {
-      _showSnackBar(
-        'Đăng nhập Google hiện chỉ dành cho khách thuê. '
-        'Hãy chọn vai trò Khách hàng.',
-        isError: true,
-      );
-      return;
-    }
-
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _isLoading = true);
-    try {
-      // Dùng Google account picker qua Google Play services thay Credential Manager
-      // để tránh lỗi "No credential available" của emulator hiện tại.
-      final googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
-
-      final googleAuth = await googleUser.authentication;
-      final googleCredential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-      final credential = await FirebaseAuth.instance.signInWithCredential(
-        googleCredential,
-      );
-      final firebaseIdToken = await credential.user?.getIdToken();
-      if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
-        throw StateError('Firebase không trả về ID token.');
-      }
-
-      final response = await ApiService.loginCustomerWithGoogle(
-        firebaseIdToken,
-      );
-      if (!mounted) return;
-
-      if (response['success'] == true) {
-        final maKhach = int.tryParse(response['maKhach']?.toString() ?? '');
-        if (maKhach != null && maKhach > 0) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CustomerHomeScreen(maKhach: maKhach),
-            ),
-          );
-          return;
-        }
-      }
-
-      await _clearFirebaseSessionAfterFailedLogin();
-      _showSnackBar(
-        response['message']?.toString() ??
-            'Google chưa được liên kết với hồ sơ khách thuê.',
-        isError: true,
-      );
-    } on FirebaseAuthException catch (error) {
-      await _clearGoogleSignInSession();
-      await _clearFirebaseSessionAfterFailedLogin();
-      if (!mounted) return;
-      _showSnackBar(
-        error.code == 'account-exists-with-different-credential'
-            ? 'Email này đang dùng phương thức đăng nhập khác.'
-            : 'Đăng nhập Google thất bại: ${error.message ?? error.code}',
-        isError: true,
-      );
-    } catch (error) {
-      await _clearGoogleSignInSession();
-      await _clearFirebaseSessionAfterFailedLogin();
-      if (!mounted) return;
-      final errorText = error.toString();
-      final message = errorText.toLowerCase().contains('no credential')
-          ? 'Emulator chưa có tài khoản Google khả dụng. '
-                'Mở Cài đặt Android → Mật khẩu và tài khoản → Thêm tài khoản → Google, '
-                'đăng nhập tài khoản rồi thử lại.'
-          : 'Đăng nhập Google thất bại: $errorText';
-      _showSnackBar(message, isError: true);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _clearGoogleSignInSession() async {
-    try {
-      await _googleSignIn.signOut();
-    } catch (error) {
-      debugPrint('Không thể xóa phiên Google: $error');
-    }
-  }
-
-  Future<void> _clearFirebaseSessionAfterFailedLogin() async {
-    try {
-      if (FirebaseAuth.instance.currentUser != null) {
-        await FirebaseAuth.instance.signOut();
-      }
-    } on FirebaseAuthException catch (error) {
-      debugPrint(
-        'Không thể xóa phiên Firebase sau đăng nhập lỗi '
-        '(${error.code}): ${error.message}',
-      );
-    }
-  }
-
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -228,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC), // Nền sáng sủa, hiện đại
+      backgroundColor: const Color(0xFFF5F7FC), // Nền sáng sủa, hiện đại
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -246,13 +139,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB).withOpacity(0.1),
+                      color: const Color(0xFF4F46E5).withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       Icons.apartment_rounded,
                       size: 64,
-                      color: Color(0xFF2563EB),
+                      color: Color(0xFF4F46E5),
                     ),
                   ),
                 ),
@@ -263,7 +156,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B),
+                    color: Color(0xFF172554),
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -303,7 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           prefixIcon: const Icon(
                             Icons.badge_outlined,
-                            color: Color(0xFF2563EB),
+                            color: Color(0xFF4F46E5),
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -320,12 +213,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
-                              color: Color(0xFF2563EB),
+                              color: Color(0xFF4F46E5),
                               width: 2,
                             ),
                           ),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
+                          fillColor: const Color(0xFFF5F7FC),
                         ),
                         onChanged: _isLoading
                             ? null
@@ -370,7 +263,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           prefixIcon: const Icon(
                             Icons.person_outline,
-                            color: Color(0xFF2563EB),
+                            color: Color(0xFF4F46E5),
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -387,12 +280,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
-                              color: Color(0xFF2563EB),
+                              color: Color(0xFF4F46E5),
                               width: 2,
                             ),
                           ),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
+                          fillColor: const Color(0xFFF5F7FC),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -410,7 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           prefixIcon: const Icon(
                             Icons.lock_outline,
-                            color: Color(0xFF2563EB),
+                            color: Color(0xFF4F46E5),
                           ),
                           suffixIcon: IconButton(
                             icon: Icon(
@@ -440,12 +333,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
-                              color: Color(0xFF2563EB),
+                              color: Color(0xFF4F46E5),
                               width: 2,
                             ),
                           ),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
+                          fillColor: const Color(0xFFF5F7FC),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -455,7 +348,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 50,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2563EB),
+                            backgroundColor: const Color(0xFF4F46E5),
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -486,50 +379,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Đường phân cách Hoặc đăng nhập bằng mạng xã hội
-                Row(
-                  children: [
-                    const Expanded(child: Divider(color: Color(0xFFCBD5E1))),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'Hoặc tiếp tục với',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    const Expanded(child: Divider(color: Color(0xFFCBD5E1))),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Google OAuth chỉ xác thực danh tính; backend vẫn phải xác minh
-                // ID token và tìm hồ sơ khách thuê đã tồn tại.
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    side: const BorderSide(color: Color(0xFFCBD5E1)),
-                    backgroundColor: Colors.white,
-                  ),
-                  onPressed: _isLoading ? null : _handleGoogleLogin,
-                  icon: const Icon(
-                    Icons.g_mobiledata,
-                    size: 28,
-                    color: Colors.red,
-                  ),
-                  label: const Text(
-                    'Tiếp tục với Google (khách thuê)',
-                    style: TextStyle(
-                      color: Color(0xFF1E293B),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
                 const SizedBox(height: 24),
 
                 // Chuyển sang màn hình Đăng ký
@@ -553,7 +402,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text(
                         'Đăng ký ngay',
                         style: TextStyle(
-                          color: Color(0xFF2563EB),
+                          color: Color(0xFF4F46E5),
                           fontWeight: FontWeight.bold,
                         ),
                       ),

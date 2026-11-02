@@ -2,11 +2,32 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 class ApiService {
   // Cổng HTTP thực tế từ file launchSettings.json của bạn là 5180
   static const String baseUrl = "http://10.0.2.2:5180/api";
   static const String meterOcrUrl = "http://10.0.2.2:5000/api/ocr-dong-ho";
+
+  // Cookie phiên đăng nhập cho ứng dụng mô phỏng (lưu trong RAM).
+  // Khi khởi động lại ứng dụng, khách cần đăng nhập lại.
+  static String? _sessionCookie;
+
+  static String? _extractSessionCookie(http.Response response) {
+    final raw = response.headers['set-cookie'];
+    if (raw == null || raw.isEmpty) return null;
+    // Cookie auth của ASP.NET Core được cấu hình tên QLPT.Session.
+    final match = RegExp(r'(?:^|[,\s])(?:QLPT\.Session|\.AspNetCore\.Cookies)=([^;,\s]+)')
+        .firstMatch(raw);
+    if (match == null) return null;
+    final name = raw.substring(match.start, match.end).trim().split('=')[0];
+    return '$name=${match.group(1)}';
+  }
+
+  static Map<String, String> _cookieHeaders() => {
+    'Content-Type': 'application/json',
+    if (_sessionCookie != null) 'Cookie': _sessionCookie!,
+  };
 
   // --- AUTH ---
   static Future<Map<String, dynamic>> login(
@@ -14,6 +35,7 @@ class ApiService {
     String password,
   ) async {
     try {
+      _sessionCookie = null;
       final response = await http
           .post(
             Uri.parse('$baseUrl/Auth/login'),
@@ -33,6 +55,7 @@ class ApiService {
           };
         }
 
+        _sessionCookie = _extractSessionCookie(response);
         final data = Map<String, dynamic>.from(decoded);
         final nested = data['data'] ?? data['user'] ?? data['taiKhoan'];
         final userData = nested is Map
@@ -114,90 +137,6 @@ class ApiService {
       }
     } catch (e) {
       return {'success': false, 'message': 'Lỗi kết nối Server: $e'};
-    }
-  }
-
-  // Backend xác thực Firebase ID token và chỉ cho đăng nhập hồ sơ khách đã tồn tại.
-  static Future<Map<String, dynamic>> loginCustomerWithGoogle(
-    String firebaseIdToken,
-  ) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/Auth/google-login'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'idToken': firebaseIdToken}),
-          )
-          .timeout(const Duration(seconds: 15));
-
-      dynamic decoded;
-      try {
-        decoded = jsonDecode(response.body);
-      } on FormatException {
-        decoded = null;
-      }
-
-      if (response.statusCode != 200 || decoded is! Map) {
-        final message = decoded is Map ? decoded['message']?.toString() : null;
-        return {
-          'success': false,
-          'message':
-              message ??
-              (response.statusCode == 404
-                  ? 'Backend chưa có API /Auth/google-login. Cần bổ sung xác thực Google ở AuthController.'
-                  : 'Đăng nhập Google thất bại (${response.statusCode}).'),
-        };
-      }
-
-      final root = Map<String, dynamic>.from(decoded);
-      final nested = root['data'] ?? root['user'];
-      final data = nested is Map ? Map<String, dynamic>.from(nested) : root;
-      final role = _normalizeLoginRole(
-        (_firstValue(data, const ['vaiTro', 'VaiTro', 'role', 'Role']) ??
-                _firstValue(root, const ['vaiTro', 'VaiTro', 'role', 'Role']))
-            ?.toString(),
-      );
-      final customerId = int.tryParse(
-        (_firstValue(data, const [
-                      'maKhach',
-                      'MaKhach',
-                      'customerId',
-                      'CustomerId',
-                      'maKhachThue',
-                      'MaKhachThue',
-                    ]) ??
-                    _firstValue(root, const [
-                      'maKhach',
-                      'MaKhach',
-                      'customerId',
-                      'CustomerId',
-                      'maKhachThue',
-                      'MaKhachThue',
-                    ]))
-                ?.toString() ??
-            '',
-      );
-
-      if (role != 'Customer' || customerId == null || customerId <= 0) {
-        return {
-          'success': false,
-          'message':
-              'Tài khoản Google chưa được liên kết với hồ sơ khách thuê hợp lệ. '
-              'Hãy dùng email đã đăng ký với chủ trọ.',
-        };
-      }
-
-      return {
-        'success': true,
-        'message': 'Đăng nhập Google thành công.',
-        'vaiTro': role,
-        'maKhach': customerId,
-      };
-    } catch (error) {
-      return {
-        'success': false,
-        'message': 'Không kết nối được API đăng nhập Google: $error',
-      };
     }
   }
 
@@ -332,12 +271,14 @@ class ApiService {
 
   static Future<void> logout() async {
     try {
-      await http
-          .post(Uri.parse('$baseUrl/Auth/logout'))
-          .timeout(const Duration(seconds: 3));
+      await http.post(
+        Uri.parse('$baseUrl/Auth/logout'),
+        headers: _cookieHeaders(),
+      ).timeout(const Duration(seconds: 3));
     } catch (e) {
-      // Logout cục bộ vẫn hoàn tất; ghi log để có thể kiểm tra API khi cần.
-      print('Lỗi gọi API logout: $e');
+      debugPrint('Lỗi gọi API logout: $e');
+    } finally {
+      _sessionCookie = null;
     }
   }
 
@@ -658,17 +599,70 @@ class ApiService {
     }
   }
 
-  static Future<bool> checkOut(int contractId, String note) async {
+  // Thanh lý hợp đồng: khớp POST /api/HopDong/{id}/thanh-ly.
+  static Future<Map<String, dynamic>> checkOut({
+    required int contractId,
+    required double tienHoanCoc,
+    double tienPhat = 0,
+    String ghiChu = '',
+  }) async {
+    if (contractId <= 0 || !tienHoanCoc.isFinite || tienHoanCoc < 0 ||
+        !tienPhat.isFinite || tienPhat < 0) {
+      return {'success': false, 'message': 'Thông tin quyết toán không hợp lệ.'};
+    }
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/HopDong/$contractId/checkout'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'note': note}),
+      final response = await http.post(
+        Uri.parse('$baseUrl/HopDong/$contractId/thanh-ly'),
+        headers: _cookieHeaders(),
+        body: jsonEncode({
+          'tienHoanCoc': tienHoanCoc,
+          'tienPhat': tienPhat,
+          'ghiChu': ghiChu.trim(),
+        }),
+      ).timeout(const Duration(seconds: 20));
+      return _decodeMutationResponse(
+        response,
+        operation: 'Thanh lý hợp đồng',
+        defaultSuccessMessage: 'Thanh lý hợp đồng thành công.',
       );
-      return res.statusCode == 200;
-    } catch (e) {
-      print('Lỗi checkOut: $e');
-      return false;
+    } on TimeoutException {
+      return {'success': false, 'message': 'Máy chủ không phản hồi sau 20 giây.'};
+    } catch (error) {
+      return {'success': false, 'message': 'Không kết nối được API thanh lý: $error'};
+    }
+  }
+
+  // ADMIN - Danh sách yêu cầu trả phòng.
+  static Future<List<dynamic>> getCheckoutRequests() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/BaoTraPhong'),
+      headers: _cookieHeaders(),
+    ).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw Exception('HTTP ${response.statusCode}: ${response.body}');
+    }
+    final data = jsonDecode(response.body);
+    if (data is! List) throw const FormatException('API không trả về danh sách.');
+    return data;
+  }
+
+  // ADMIN - Duyệt hoặc từ chối yêu cầu (không thanh lý ngay).
+  static Future<Map<String, dynamic>> processCheckoutRequest(
+    int requestId, {required bool approve}) async {
+    try {
+      final action = approve ? 'duyet' : 'tu-choi';
+      final response = await http.put(
+        Uri.parse('$baseUrl/BaoTraPhong/$requestId/$action'),
+        headers: _cookieHeaders(),
+      ).timeout(const Duration(seconds: 15));
+      final decoded = jsonDecode(response.body);
+      final data = decoded is Map ? Map<String, dynamic>.from(decoded) : <String, dynamic>{};
+      return {
+        'success': response.statusCode >= 200 && response.statusCode < 300 && data['success'] == true,
+        'message': data['message']?.toString() ?? 'HTTP ${response.statusCode}',
+      };
+    } catch (error) {
+      return {'success': false, 'message': 'Không xử lý được yêu cầu: $error'};
     }
   }
 
@@ -683,7 +677,7 @@ class ApiService {
       final response = await http
           .post(
             Uri.parse('$baseUrl/BaoTraPhong'),
-            headers: {'Content-Type': 'application/json'},
+            headers: _cookieHeaders(),
             body: jsonEncode({
               'maHopDong': contractId,
               'maKhach': customerId,
@@ -728,6 +722,94 @@ class ApiService {
       };
     }
   }
+  static Future<Map<String, dynamic>> guiYeuCauHuy({
+    required int maDatPhong,
+    required String lyDo,
+  }) async {
+    if (maDatPhong <= 0 || lyDo.trim().isEmpty) {
+      return {'success': false, 'message': 'Vui lòng nhập lý do hủy hợp lệ.'};
+    }
+    if (_sessionCookie == null) {
+      return {
+        'success': false,
+        'message': 'Chưa có phiên đăng nhập. Vui lòng đăng xuất rồi đăng nhập lại.',
+      };
+    }
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/YeuCauHuyDatPhong/$maDatPhong/gui'),
+        headers: _cookieHeaders(),
+        body: jsonEncode({'lyDo': lyDo.trim()}),
+      ).timeout(const Duration(seconds: 15));
+      dynamic decoded;
+      try {
+        decoded = jsonDecode(response.body);
+      } on FormatException {
+        decoded = null;
+      }
+      final body = decoded is Map
+          ? Map<String, dynamic>.from(decoded)
+          : <String, dynamic>{};
+      final ok = response.statusCode >= 200 &&
+          response.statusCode < 300 && body['success'] != false;
+      return {
+        ...body,
+        'success': ok,
+        'message': body['message']?.toString() ??
+            (response.statusCode == 401
+                ? 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.'
+                : response.statusCode == 403
+                    ? 'Tài khoản không có quyền gửi yêu cầu hủy.'
+                    : 'Không thể gửi yêu cầu (HTTP ${response.statusCode}).'),
+      };
+    } on TimeoutException {
+      return {'success': false, 'message': 'Máy chủ không phản hồi sau 15 giây.'};
+    } catch (e) {
+      return {'success': false, 'message': 'Lỗi kết nối: $e'};
+    }
+  }
+
+
+  // --- ADMIN: YÊU CẦU HỦY ĐẶT PHÒNG ---
+  static Future<List<Map<String, dynamic>>> getCancellationRequests() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/YeuCauHuyDatPhong'),
+      headers: _cookieHeaders(),
+    ).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw Exception('Không tải được yêu cầu hủy (HTTP ${response.statusCode}): ${response.body}');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) throw const FormatException('API yêu cầu hủy không trả về danh sách.');
+    return decoded.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  static Future<Map<String, dynamic>> processCancellationRequest({
+    required int requestId,
+    required bool approve,
+    String note = '',
+  }) async {
+    try {
+      final action = approve ? 'duyet' : 'tu-choi';
+      final response = await http.put(
+        Uri.parse('$baseUrl/YeuCauHuyDatPhong/$requestId/$action'),
+        headers: _cookieHeaders(),
+        body: jsonEncode({'ghiChu': note}),
+      ).timeout(const Duration(seconds: 15));
+      dynamic decoded;
+      try { decoded = jsonDecode(response.body); } catch (_) { decoded = null; }
+      final data = decoded is Map ? Map<String, dynamic>.from(decoded) : <String, dynamic>{};
+      final ok = response.statusCode >= 200 && response.statusCode < 300 && data['success'] != false;
+      return {
+        ...data,
+        'success': ok,
+        'message': data['message']?.toString() ??
+            (ok ? 'Đã xử lý yêu cầu.' : 'Không thể xử lý yêu cầu (HTTP ${response.statusCode}).'),
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Lỗi kết nối: $e'};
+    }
+  }
 
   // --- BOOKINGS (Đặt Phòng) ---
   static Future<List<dynamic>> getBookings() async {
@@ -743,55 +825,185 @@ class ApiService {
     }
   }
 
+  // Tạo phiếu đặt cọc: ánh xạ tên trường Flutter sang DTO ASP.NET Core.
   static Future<Map<String, dynamic>> createBooking(
     Map<String, dynamic> data,
   ) async {
+    int? positiveId(List<String> keys) {
+      for (final key in keys) {
+        final raw = data[key];
+        final id = raw is num
+            ? raw.toInt()
+            : int.tryParse(raw?.toString().trim() ?? '');
+        if (id != null && id > 0) return id;
+      }
+      return null;
+    }
+
+    final maPhong = positiveId(['maPhong', 'MaPhong', 'roomId']);
+    final maKhach = positiveId(['maKhach', 'MaKhach', 'customerId']);
+    if (maPhong == null) {
+      return {'success': false, 'message': 'Mã phòng không hợp lệ. Vui lòng chọn lại phòng.'};
+    }
+    if (maKhach == null) {
+      return {'success': false, 'message': 'Mã khách thuê không hợp lệ. Vui lòng chọn lại khách.'};
+    }
+
+    final rawDeposit = data['tienCoc'] ?? data['TienCoc'] ?? data['depositAmount'];
+    final tienCoc = rawDeposit is num
+        ? rawDeposit.toDouble()
+        : double.tryParse(rawDeposit?.toString().trim() ?? '');
+    if (tienCoc == null || !tienCoc.isFinite || tienCoc <= 0) {
+      return {'success': false, 'message': 'Số tiền đặt cọc phải lớn hơn 0.'};
+    }
+
+    final rawDate = data['ngayDuKienNhan'] ??
+        data['NgayDuKienNhan'] ??
+        data['expectedCheckIn'] ??
+        data['expectedDate'];
+    final expectedDate = rawDate?.toString().trim() ?? '';
+    if (expectedDate.isEmpty || DateTime.tryParse(expectedDate) == null) {
+      return {'success': false, 'message': 'Ngày dự kiến nhận phòng không hợp lệ.'};
+    }
+
+    final payload = <String, dynamic>{
+      'maPhong': maPhong,
+      'maKhach': maKhach,
+      'tienCoc': tienCoc,
+      'ngayDuKienNhan': expectedDate,
+      'ghiChu': (data['ghiChu'] ?? data['note'] ?? '').toString(),
+    };
+    // Nếu backend yêu cầu ngày đặt, dùng ngày do màn hình cung cấp.
+    final ngayDat = data['ngayDat'] ?? data['bookingDate'];
+    if (ngayDat != null && ngayDat.toString().trim().isNotEmpty) {
+      payload['ngayDat'] = ngayDat;
+    }
+
     try {
       final url = Uri.parse('$baseUrl/DatPhong');
-      final res = await http
-          .post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(data),
-          )
-          .timeout(const Duration(seconds: 10));
+      debugPrint('[BOOKING] POST $url');
+      debugPrint('[BOOKING] Request: ${jsonEncode(payload)}');
+      final res = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 15));
+      debugPrint('[BOOKING] HTTP ${res.statusCode}: ${res.body}');
 
-      if (res.statusCode == 200 || res.statusCode == 201) {
-        return {'success': true, 'message': 'Đặt cọc thành công'};
-      } else {
-        return {
-          'success': false,
-          'message': 'Lỗi (${res.statusCode}): ${res.body}',
-        };
+      dynamic decoded;
+      try {
+        decoded = res.body.isEmpty ? null : jsonDecode(res.body);
+      } on FormatException {
+        decoded = null;
       }
-    } catch (e) {
-      return {'success': false, 'message': 'Lỗi kết nối API: $e'};
+      final body = decoded is Map
+          ? Map<String, dynamic>.from(decoded)
+          : <String, dynamic>{};
+      final success = res.statusCode >= 200 &&
+          res.statusCode < 300 && body['success'] != false;
+      return {
+        ...body,
+        'success': success,
+        'message': body['message']?.toString() ??
+            (success ? 'Đặt cọc thành công.' : 'Lỗi (${res.statusCode}): ${res.body}'),
+      };
+    } on TimeoutException {
+      return {'success': false, 'message': 'Máy chủ đặt cọc không phản hồi sau 15 giây.'};
+    } catch (error) {
+      return {'success': false, 'message': 'Không thể kết nối API đặt cọc: $error'};
     }
   }
 
-  // Cập nhật một lượt đặt phòng bằng khóa maDatPhong để lưu trạng thái quản lý.
+  // Cập nhật đặt chỗ. Endpoint phải khớp với DatPhongController ở backend.
   static Future<Map<String, dynamic>> updateBooking(
     int bookingId,
     Map<String, dynamic> data,
   ) async {
-    try {
-      final res = await http
-          .put(
-            Uri.parse('$baseUrl/DatPhong/$bookingId'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(data),
-          )
-          .timeout(const Duration(seconds: 10));
+    if (bookingId <= 0) {
+      return {
+        'success': false,
+        'message': 'Mã đặt phòng không hợp lệ: $bookingId.',
+      };
+    }
 
-      if (res.statusCode == 200 || res.statusCode == 204) {
-        return {'success': true, 'message': 'Cập nhật đặt phòng thành công'};
+    final status = (data['status'] ?? data['trangThai'] ?? '').toString().trim();
+    if (status != 'Đã hủy') {
+      return {
+        'success': false,
+        'message': status == 'Đã nhận phòng'
+            ? 'Backend chưa có API xác nhận nhận phòng. Cần bổ sung nghiệp vụ nhận phòng và hợp đồng.'
+            : 'Backend hiện chỉ hỗ trợ hủy phiếu đang đặt cọc; không thể đổi sang trạng thái: $status.',
+      };
+    }
+    final uri = Uri.parse('$baseUrl/DatPhong/$bookingId/huy');
+    // Chính sách hoàn cọc do backend tự tính, không gửi lựa chọn hoàn tiền.
+    final payload = <String, dynamic>{};
+    try {
+      debugPrint('[BOOKING] PUT $uri');
+      debugPrint('[BOOKING] Request: ${jsonEncode(payload)}');
+      final response = await http.put(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 15));
+
+      debugPrint('[BOOKING] HTTP ${response.statusCode}');
+      debugPrint('[BOOKING] Response: ${response.body}');
+
+      dynamic decoded;
+      try {
+        decoded = response.body.isEmpty ? null : jsonDecode(response.body);
+      } on FormatException {
+        decoded = null;
+      }
+      final body = decoded is Map
+          ? Map<String, dynamic>.from(decoded)
+          : <String, dynamic>{};
+      final serverMessage = body['message']?.toString();
+
+      if (response.statusCode >= 200 &&
+          response.statusCode < 300 &&
+          body['success'] != false) {
+        return {
+          ...body,
+          'success': true,
+          'message': serverMessage ?? 'Cập nhật đặt phòng thành công.',
+        };
+      }
+
+      String message;
+      if (response.statusCode == 404) {
+        message = 'Không tìm thấy API hoặc đặt phòng #$bookingId (HTTP 404). '
+            'Kiểm tra route PUT /api/DatPhong/{id} trong DatPhongController '
+            'và xác nhận maDatPhong tồn tại. URL: $uri';
+      } else if (response.statusCode == 405) {
+        message = 'Backend không hỗ trợ phương thức PUT cho $uri (HTTP 405). '
+            'Kiểm tra phương thức được khai báo trong DatPhongController.';
+      } else if (response.statusCode == 400) {
+        message = 'Dữ liệu cập nhật không hợp lệ (HTTP 400). '
+            '${serverMessage ?? response.body}';
+      } else {
+        message = serverMessage ??
+            'Cập nhật đặt phòng thất bại (HTTP ${response.statusCode}): '
+                '${response.body}';
       }
       return {
         'success': false,
-        'message': 'Lỗi (${res.statusCode}): ${res.body}',
+        'statusCode': response.statusCode,
+        'url': uri.toString(),
+        'message': message,
       };
-    } catch (e) {
-      return {'success': false, 'message': 'Lỗi kết nối API: $e'};
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'API cập nhật đặt phòng quá thời gian chờ (15 giây): $uri',
+      };
+    } catch (error) {
+      debugPrint('[BOOKING] Exception: $error');
+      return {
+        'success': false,
+        'message': 'Không thể kết nối API cập nhật đặt phòng: $error',
+      };
     }
   }
 
@@ -1108,7 +1320,7 @@ class ApiService {
     required int month,
     required int year,
     http.Client? client,
-    Duration timeout = const Duration(seconds: 35),
+    Duration timeout = const Duration(seconds: 70),
     Future<void>? abortTrigger,
   }) async {
     if (imageBytes.isEmpty) {
@@ -1198,6 +1410,9 @@ class ApiService {
         'success': true,
         'chiSoMoi': parsedReading,
         'tieuThu': parsedReading - oldReading,
+        'confidence': body['confidence']?.toString() ?? 'Không xác định',
+        'needs_review': body['needs_review'] != false,
+        'note': body['note']?.toString() ?? '',
       };
     } on http.RequestAbortedException {
       return {
@@ -1225,6 +1440,68 @@ class ApiService {
       if (client == null) requestClient.close();
     }
   }
+
+  // Lấy chỉ số cuối kỳ trước theo phòng và loại chỉ số.
+  // Truyền month/year của kỳ đang lập hóa đơn để tránh dùng nhầm tháng.
+  static Future<double?> _getPreviousMeterReading(
+    int roomId,
+    String meterType, {
+    int? month,
+    int? year,
+  }) async {
+    if (roomId <= 0) return null;
+    if ((month == null) != (year == null)) {
+      throw ArgumentError('Phải truyền cả month và year hoặc không truyền cả hai.');
+    }
+    if (month != null && (month < 1 || month > 12 || year! < 1)) {
+      throw ArgumentError('Kỳ hóa đơn không hợp lệ.');
+    }
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/ChiSoDienNuoc'),
+      headers: _cookieHeaders(),
+    ).timeout(const Duration(seconds: 12));
+    final entries = _decodeListResponse(response, 'Không tải được lịch sử chỉ số');
+
+    final targetPeriod = month == null ? null :
+        (month == 1 ? (year! - 1) * 12 + 12 : year! * 12 + month - 1);
+    final matches = <Map<String, dynamic>>[];
+    for (final item in entries.whereType<Map>()) {
+      final row = Map<String, dynamic>.from(item);
+      final id = int.tryParse((row['maPhong'] ?? row['MaPhong'] ?? '').toString());
+      final type = (row['loaiChiSo'] ?? row['LoaiChiSo'] ?? '').toString().trim().toLowerCase();
+      final rowMonth = int.tryParse((row['thang'] ?? row['Thang'] ?? '').toString());
+      final rowYear = int.tryParse((row['nam'] ?? row['Nam'] ?? '').toString());
+      if (id != roomId || type != meterType.toLowerCase() || rowMonth == null || rowYear == null) continue;
+      final period = rowYear * 12 + rowMonth;
+      if (targetPeriod != null && period != targetPeriod) continue;
+      matches.add(row);
+    }
+    matches.sort((a, b) {
+      int period(Map<String, dynamic> row) =>
+          (int.tryParse((row['nam'] ?? row['Nam']).toString()) ?? 0) * 12 +
+          (int.tryParse((row['thang'] ?? row['Thang']).toString()) ?? 0);
+      final order = period(b).compareTo(period(a));
+      if (order != 0) return order;
+      return (int.tryParse((b['maChiSo'] ?? b['MaChiSo']).toString()) ?? 0)
+          .compareTo(int.tryParse((a['maChiSo'] ?? a['MaChiSo']).toString()) ?? 0);
+    });
+    for (final row in matches) {
+      final raw = row['chiSoXacNhan'] ?? row['ChiSoXacNhan'] ??
+          row['chiSoMoi'] ?? row['ChiSoMoi'];
+      final value = double.tryParse(raw?.toString() ?? '');
+      if (value != null && value.isFinite && value >= 0) return value;
+    }
+    return null;
+  }
+
+  static Future<double?> getPreviousElectricReading(
+    int roomId, {int? month, int? year}) =>
+      _getPreviousMeterReading(roomId, 'Điện', month: month, year: year);
+
+  static Future<double?> getPreviousWaterReading(
+    int roomId, {int? month, int? year}) =>
+      _getPreviousMeterReading(roomId, 'Nước', month: month, year: year);
 
   static Future<List<dynamic>> getCustomerMeterReadings(
     int customerId, {
@@ -1592,4 +1869,138 @@ class ApiService {
 
     return {'rooms': decodedRooms, 'invoices': decodedInvoices};
   }
+
+  // Thông báo: sử dụng cookie phiên đăng nhập hiện tại.
+  static Future<List<Map<String, dynamic>>> getCustomerNotifications(int maKhach) async {
+    final res = await http.get(Uri.parse('$baseUrl/ThongBao/khach/$maKhach'),
+      headers: _cookieHeaders()).timeout(const Duration(seconds: 12));
+    if (res.statusCode != 200) throw Exception('Không tải được thông báo: HTTP ${res.statusCode}');
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) throw const FormatException('Thông báo không phải danh sách');
+    return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  static Future<String> sendBroadcastNotification({required String title, required String content}) async {
+    final res = await http.post(Uri.parse('$baseUrl/ThongBao'),
+      headers: _cookieHeaders(),
+      body: jsonEncode({'tieuDe': title, 'noiDung': content,
+        'loaiThongBao': 'Thông báo chung', 'guiChoTatCa': true}),
+    ).timeout(const Duration(seconds: 20));
+    final decoded = jsonDecode(res.body);
+    final message = decoded is Map ? (decoded['message'] ?? '').toString() : '';
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception(message.isEmpty ? 'HTTP ${res.statusCode}' : message);
+    }
+    return message.isEmpty ? 'Đã gửi thông báo' : message;
+  }
+
+
+  // --- YÊU CẦU GIA HẠN HỢP ĐỒNG ---
+  // Cookie đăng nhập bắt buộc: backend phân quyền Admin/Customer.
+  static Future<List<dynamic>> getContractExtensionRequests() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/GiaHanHopDong'),
+      headers: _cookieHeaders(),
+    ).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw Exception('Không tải được yêu cầu gia hạn (HTTP ${response.statusCode}): ${response.body}');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw const FormatException('API gia hạn không trả về danh sách.');
+    }
+    return decoded;
+  }
+
+  static Future<Map<String, dynamic>> sendContractExtensionRequest({
+    required int maHopDong,
+    required String ngayKetThucMoi,
+    String lyDo = '',
+  }) async {
+    if (maHopDong <= 0 || DateTime.tryParse(ngayKetThucMoi) == null) {
+      return {'success': false, 'message': 'Hợp đồng hoặc ngày gia hạn không hợp lệ.'};
+    }
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/GiaHanHopDong/gui'),
+        headers: _cookieHeaders(),
+        body: jsonEncode({
+          'maHopDong': maHopDong,
+          'ngayKetThucMoi': ngayKetThucMoi,
+          'lyDo': lyDo.trim(),
+        }),
+      ).timeout(const Duration(seconds: 15));
+      return _decodeMutationResponse(
+        response,
+        operation: 'Gửi yêu cầu gia hạn',
+        defaultSuccessMessage: 'Đã gửi yêu cầu gia hạn đến chủ trọ.',
+      );
+    } on TimeoutException {
+      return {'success': false, 'message': 'Máy chủ không phản hồi sau 15 giây.'};
+    } catch (e) {
+      return {'success': false, 'message': 'Không gửi được yêu cầu gia hạn: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> processContractExtensionRequest({
+    required int maGiaHan,
+    required bool approve,
+    String ghiChu = '',
+  }) async {
+    if (maGiaHan <= 0) {
+      return {'success': false, 'message': 'Mã yêu cầu gia hạn không hợp lệ.'};
+    }
+    try {
+      final action = approve ? 'duyet' : 'tu-choi';
+      final response = await http.put(
+        Uri.parse('$baseUrl/GiaHanHopDong/$maGiaHan/$action'),
+        headers: _cookieHeaders(),
+        body: jsonEncode({'ghiChu': ghiChu.trim()}),
+      ).timeout(const Duration(seconds: 15));
+      return _decodeMutationResponse(
+        response,
+        operation: approve ? 'Duyệt gia hạn' : 'Từ chối gia hạn',
+        defaultSuccessMessage: approve ? 'Đã duyệt gia hạn.' : 'Đã từ chối yêu cầu.',
+      );
+    } on TimeoutException {
+      return {'success': false, 'message': 'Máy chủ không phản hồi sau 15 giây.'};
+    } catch (e) {
+      return {'success': false, 'message': 'Không xử lý được yêu cầu gia hạn: $e'};
+    }
+  }
+
+  // Tải hóa đơn PDF, gửi kèm cookie đăng nhập ASP.NET Core.
+  static Future<Uint8List> downloadInvoicePdf(int invoiceId) async {
+    if (invoiceId <= 0) {
+      throw ArgumentError.value(invoiceId, 'invoiceId', 'Mã hóa đơn không hợp lệ.');
+    }
+    final response = await http.get(
+      Uri.parse('$baseUrl/HoaDon/$invoiceId/pdf'),
+      headers: {
+        ..._cookieHeaders(),
+        'Accept': 'application/pdf',
+      },
+    ).timeout(const Duration(seconds: 45));
+
+    if (response.statusCode == 401) {
+      throw Exception('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
+    }
+    if (response.statusCode == 403) {
+      throw Exception('Bạn không có quyền xem hóa đơn này.');
+    }
+    if (response.statusCode == 404) {
+      throw Exception('Không tìm thấy hóa đơn #$invoiceId.');
+    }
+    if (response.statusCode != 200) {
+      throw Exception('Không thể tải PDF (HTTP ${response.statusCode}).');
+    }
+    final bytes = response.bodyBytes;
+    if (bytes.length < 5 ||
+        bytes[0] != 0x25 || bytes[1] != 0x50 ||
+        bytes[2] != 0x44 || bytes[3] != 0x46 || bytes[4] != 0x2D) {
+      throw const FormatException('Máy chủ không trả về file PDF hợp lệ.');
+    }
+    return bytes;
+  }
+
 }

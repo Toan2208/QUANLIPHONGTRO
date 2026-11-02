@@ -33,24 +33,24 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: const Text(
           'Hợp Đồng Thuê Trọ Của Tôi',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18,
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         centerTitle: true,
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+              child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
             )
           : _contracts.isEmpty
           ? Center(
@@ -76,7 +76,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
+                      backgroundColor: const Color(0xFF4F46E5),
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
@@ -88,7 +88,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
               ),
             )
           : RefreshIndicator(
-              color: const Color(0xFF2563EB),
+              color: const Color(0xFF4F46E5),
               onRefresh: () async => _loadContracts(),
               child: ListView.builder(
                 padding: const EdgeInsets.all(16),
@@ -129,7 +129,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF2563EB),
+                                  color: Color(0xFF4F46E5),
                                 ),
                               ),
                               Container(
@@ -182,9 +182,9 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
                             height: 42,
                             child: OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFF2563EB),
+                                foregroundColor: const Color(0xFF4F46E5),
                                 side: const BorderSide(
-                                  color: Color(0xFF2563EB),
+                                  color: Color(0xFF4F46E5),
                                 ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
@@ -220,7 +220,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: const Color(0xFF2563EB)),
+        Icon(icon, size: 18, color: const Color(0xFF4F46E5)),
         const SizedBox(width: 10),
         Text(
           label,
@@ -233,7 +233,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
             style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 13,
-              color: Color(0xFF1E293B),
+              color: Color(0xFF172554),
             ),
             textAlign: TextAlign.right,
           ),
@@ -297,7 +297,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
         actions: [
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
+              backgroundColor: const Color(0xFF4F46E5),
               foregroundColor: Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(
@@ -336,7 +336,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
             style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 13,
-              color: Color(0xFF1E293B),
+              color: Color(0xFF172554),
             ),
           ),
         ),

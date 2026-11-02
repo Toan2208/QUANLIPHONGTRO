@@ -118,24 +118,24 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: const Text(
           'Lịch sử sử dụng & thanh toán',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 17,
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
-          indicatorColor: const Color(0xFF2563EB),
-          labelColor: const Color(0xFF2563EB),
+          indicatorColor: const Color(0xFF4F46E5),
+          labelColor: const Color(0xFF4F46E5),
           unselectedLabelColor: const Color(0xFF64748B),
           tabs: const [
             Tab(icon: Icon(Icons.payments_outlined), text: 'Thanh toán'),
@@ -329,7 +329,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen>
                   ),
                   child: const Icon(
                     Icons.receipt_long_outlined,
-                    color: Color(0xFF2563EB),
+                    color: Color(0xFF4F46E5),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -340,7 +340,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen>
                       Text(
                         'Kỳ hóa đơn $month/$year',
                         style: const TextStyle(
-                          color: Color(0xFF1E293B),
+                          color: Color(0xFF172554),
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
                         ),
@@ -379,7 +379,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen>
                     style: TextStyle(
                       color: isPaid
                           ? const Color(0xFF15803D)
-                          : const Color(0xFF1E293B),
+                          : const Color(0xFF172554),
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
@@ -478,7 +478,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen>
         _infoRow(
           'Mức sử dụng',
           '${_number(usage)} $unit',
-          valueColor: const Color(0xFF2563EB),
+          valueColor: const Color(0xFF4F46E5),
         ),
         _infoRow('Ngày ghi', _date(_value(reading, 'ngayGhi', 'NgayGhi'))),
       ],
@@ -565,7 +565,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen>
           children: [
             Row(
               children: [
-                Icon(icon, color: const Color(0xFF2563EB)),
+                Icon(icon, color: const Color(0xFF4F46E5)),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -574,7 +574,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen>
                       Text(
                         title,
                         style: const TextStyle(
-                          color: Color(0xFF1E293B),
+                          color: Color(0xFF172554),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -610,7 +610,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, color: Color(0xFF2563EB), size: 18),
+          const Icon(Icons.info_outline, color: Color(0xFF4F46E5), size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -626,7 +626,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen>
   Widget _infoRow(
     String label,
     String value, {
-    Color valueColor = const Color(0xFF1E293B),
+    Color valueColor = const Color(0xFF172554),
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -671,7 +671,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen>
   }
 
   Widget _loadingView() =>
-      const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)));
+      const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)));
 
   Widget _errorView(String error, Future<void> Function() retry) {
     return Center(

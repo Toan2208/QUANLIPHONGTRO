@@ -48,14 +48,14 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     final ngaySinh = c['ngaySinh'] != null ? c['ngaySinh'].toString().split('T')[0] : 'Chưa cập nhật';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: Text(
           'Hồ Sơ: $hoTen',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1E293B)),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF172554)),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         centerTitle: true,
       ),
@@ -81,10 +81,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                         width: 56,
                         height: 56,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2563EB).withOpacity(0.1),
+                          color: const Color(0xFF4F46E5).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Icon(Icons.person_rounded, color: Color(0xFF2563EB), size: 30),
+                        child: const Icon(Icons.person_rounded, color: Color(0xFF4F46E5), size: 30),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -93,7 +93,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                           children: [
                             Text(
                               hoTen,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1E293B)),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF172554)),
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -121,13 +121,13 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             // Tiêu đề phần phòng đang thuê
             const Text(
               'Phòng Trọ Đang Thuê & Hợp Đồng',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF172554)),
             ),
             const SizedBox(height: 12),
 
             // Nội dung hiển thị phòng đang ở
             _isLoadingContracts
-                ? const Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator(color: Color(0xFF2563EB))))
+                ? const Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator(color: Color(0xFF4F46E5))))
                 : _customerContracts.isEmpty
                     ? Container(
                         padding: const EdgeInsets.all(20),
@@ -168,7 +168,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                                   children: [
                                     Text(
                                       'Phòng: $tenPhong',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF2563EB)),
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF4F46E5)),
                                     ),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -184,9 +184,9 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                                   ],
                                 ),
                                 const Divider(height: 20, color: Color(0xFFE2E8F0)),
-                                Text('Mã hợp đồng: #$maHd', style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B))),
+                                Text('Mã hợp đồng: #$maHd', style: const TextStyle(fontSize: 13, color: Color(0xFF172554))),
                                 const SizedBox(height: 4),
-                                Text('Giá thuê: $giaThue VNĐ/tháng', style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B))),
+                                Text('Giá thuê: $giaThue VNĐ/tháng', style: const TextStyle(fontSize: 13, color: Color(0xFF172554))),
                                 const SizedBox(height: 4),
                                 Text('Ngày bắt đầu: $ngayBatDau', style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
                               ],
@@ -203,7 +203,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF2563EB), size: 20),
+        Icon(icon, color: const Color(0xFF4F46E5), size: 20),
         const SizedBox(width: 12),
         SizedBox(
           width: 130,
@@ -212,7 +212,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E293B)),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF172554)),
             textAlign: TextAlign.right,
           ),
         ),

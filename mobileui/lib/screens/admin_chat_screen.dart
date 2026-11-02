@@ -163,18 +163,18 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: Text(
           'Trò chuyện với ${widget.tenKhach}',
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         centerTitle: true,
       ),
@@ -182,7 +182,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
         children: [
           Expanded(
             child: RefreshIndicator(
-              color: const Color(0xFF2563EB),
+              color: const Color(0xFF4F46E5),
               onRefresh: () => _loadMessages(showLoading: true),
               child: _isLoading && _messages.isEmpty
                   ? ListView(
@@ -191,7 +191,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                         SizedBox(height: 220),
                         Center(
                           child: CircularProgressIndicator(
-                            color: Color(0xFF2563EB),
+                            color: Color(0xFF4F46E5),
                           ),
                         ),
                       ],
@@ -280,7 +280,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: fromAdmin
-                                      ? const Color(0xFF2563EB)
+                                      ? const Color(0xFF4F46E5)
                                       : Colors.white,
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
@@ -294,7 +294,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                                   style: TextStyle(
                                     color: fromAdmin
                                         ? Colors.white
-                                        : const Color(0xFF1E293B),
+                                        : const Color(0xFF172554),
                                     fontSize: 14,
                                   ),
                                 ),
@@ -342,7 +342,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                         borderSide: BorderSide.none,
                       ),
                       filled: true,
-                      fillColor: const Color(0xFFF8FAFC),
+                      fillColor: const Color(0xFFF5F7FC),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 10,
@@ -361,7 +361,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                         )
                       : const Icon(
                           Icons.send_rounded,
-                          color: Color(0xFF2563EB),
+                          color: Color(0xFF4F46E5),
                         ),
                 ),
               ],

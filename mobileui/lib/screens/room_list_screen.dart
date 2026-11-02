@@ -49,6 +49,18 @@ class _RoomListScreenState extends State<RoomListScreen> {
 
     int? selectedMaLoaiPhong;
     List<dynamic> roomTypes = [];
+    int? selectedMaCoSo;
+    final facilityIds = _currentRooms
+        .whereType<Map>()
+        .map((room) => int.tryParse(
+              (room['maCoSo'] ?? room['MaCoSo'] ?? '').toString(),
+            ))
+        .whereType<int>()
+        .where((id) => id > 0)
+        .toSet()
+        .toList()..sort();
+    if (facilityIds.isNotEmpty) selectedMaCoSo = facilityIds.first;
+    bool isSaving = false;
 
     try {
       roomTypes = await ApiService.getRoomTypes();
@@ -72,7 +84,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
+        builder: (dialogContext, setDialogState) {
           return AlertDialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
@@ -120,6 +132,31 @@ class _RoomListScreenState extends State<RoomListScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
+                  if (facilityIds.isNotEmpty)
+                    DropdownButtonFormField<int>(
+                      value: selectedMaCoSo,
+                      isExpanded: true,
+                      decoration: _dialogInputDecoration(
+                        'Cơ sở quản lý', Icons.apartment_rounded,
+                      ),
+                      items: facilityIds.map((id) => DropdownMenuItem<int>(
+                        value: id,
+                        child: Text('Cơ sở #$id'),
+                      )).toList(),
+                      onChanged: isSaving ? null : (value) {
+                        setDialogState(() => selectedMaCoSo = value);
+                      },
+                    )
+                  else
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'Chưa có mã cơ sở trong dữ liệu phòng. '
+                        'Cần API danh sách cơ sở để tạo phòng đầu tiên.',
+                        style: TextStyle(color: Colors.deepOrange),
+                      ),
+                    ),
+                  const SizedBox(height: 14),
                   if (roomTypes.isNotEmpty)
                     DropdownButtonFormField<int>(
                       value: selectedMaLoaiPhong,
@@ -128,7 +165,10 @@ class _RoomListScreenState extends State<RoomListScreen> {
                         'Loại phòng',
                         Icons.category_outlined,
                       ),
-                      items: roomTypes.map<DropdownMenuItem<int>>((type) {
+                      items: roomTypes.where((type) {
+                        final id = int.tryParse((type['maLoaiPhong'] ?? type['MaLoaiPhong'] ?? type['roomTypeId'] ?? type['RoomTypeId'])?.toString() ?? '');
+                        return id != null && id > 0;
+                      }).map<DropdownMenuItem<int>>((type) {
                         final typeId = int.tryParse(
                           (type['maLoaiPhong'] ??
                                       type['MaLoaiPhong'] ??
@@ -175,7 +215,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
                 child: const Text(
                   'Hủy',
                   style: TextStyle(color: Color(0xFF64748B)),
@@ -190,63 +230,73 @@ class _RoomListScreenState extends State<RoomListScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                onPressed: () async {
+                onPressed: isSaving ? null : () async {
                   final tenPhong = tenPhongCtrl.text.trim();
-                  final tangText = tangCtrl.text.trim();
-                  final giaThueText = giaThueCtrl.text.trim();
-
-                  if (tenPhong.isEmpty ||
-                      tangText.isEmpty ||
-                      giaThueText.isEmpty) {
-                    _showSnackBar(
-                      'Vui lòng điền đầy đủ thông tin bắt buộc!',
-                      isError: true,
-                    );
-                    return;
-                  }
-
-                  bool isDuplicate = _currentRooms.any(
-                    (r) =>
-                        (r['tenPhong'] ?? r['roomNumber'] ?? '')
-                            .toString()
-                            .trim()
-                            .toLowerCase() ==
-                        tenPhong.toLowerCase(),
+                  final tang = int.tryParse(tangCtrl.text.trim());
+                  final giaThue = double.tryParse(
+                    giaThueCtrl.text.trim().replaceAll(',', '.'),
                   );
 
-                  if (isDuplicate) {
-                    _showSnackBar(
-                      'Phòng "$tenPhong" đã tồn tại trong hệ thống!',
-                      isError: true,
-                    );
+                  if (tenPhong.isEmpty) {
+                    _showSnackBar('Vui lòng nhập tên phòng.', isError: true);
+                    return;
+                  }
+                  if (tang == null || tang < 0) {
+                    _showSnackBar('Tầng phải là số nguyên không âm.', isError: true);
+                    return;
+                  }
+                  if (giaThue == null || !giaThue.isFinite || giaThue <= 0) {
+                    _showSnackBar('Giá thuê phải là số lớn hơn 0.', isError: true);
+                    return;
+                  }
+                  if (selectedMaLoaiPhong == null || selectedMaLoaiPhong! <= 0) {
+                    _showSnackBar('Vui lòng chọn loại phòng hợp lệ.', isError: true);
                     return;
                   }
 
-                  final data = {
+                  if (selectedMaCoSo == null) {
+                     _showSnackBar('Vui lòng chọn cơ sở trước khi thêm phòng.', isError: true);
+                     return;
+                   }
+
+                  final isDuplicate = _currentRooms.any((r) =>
+                    (r['tenPhong'] ?? r['TenPhong'] ?? r['roomNumber'] ?? '')
+                      .toString().trim().toLowerCase() == tenPhong.toLowerCase());
+                  if (isDuplicate) {
+                    _showSnackBar('Phòng "$tenPhong" đã tồn tại!', isError: true);
+                    return;
+                  }
+
+                  // MaPhong là khóa chính do backend/database cấp.
+                  // Không gửi maPhong = 0 hoặc tự lấy số từ tên phòng.
+                  final data = <String, dynamic>{
                     'tenPhong': tenPhong,
-                    'tang': int.parse(tangText),
-                    'giaThue': double.parse(giaThueText),
+                    'tang': tang,
+                    'giaThue': giaThue,
                     'trangThai': 'Trống',
                     'moTa': moTaCtrl.text.trim(),
                     'maLoaiPhong': selectedMaLoaiPhong,
-                    'maCoSo': 1,
+                    'maCoSo': selectedMaCoSo,
                   };
 
-                  bool success = await ApiService.createRoom(data);
-
-                  if (mounted) {
-                    Navigator.pop(context);
+                  setDialogState(() => isSaving = true);
+                  try {
+                    final success = await ApiService.createRoom(data);
+                    if (!mounted || !dialogContext.mounted) return;
                     if (success) {
-                      _showSnackBar(
-                        'Thêm phòng mới thành công!',
-                        isError: false,
-                      );
+                      Navigator.pop(dialogContext);
+                      _showSnackBar('Thêm phòng mới thành công!');
                       _loadRooms();
                     } else {
-                      _showSnackBar(
-                        'Thêm phòng thất bại từ server!',
-                        isError: true,
-                      );
+                      _showSnackBar('Thêm phòng thất bại. Kiểm tra dữ liệu và API.', isError: true);
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      _showSnackBar('Không thể thêm phòng: $e', isError: true);
+                    }
+                  } finally {
+                    if (dialogContext.mounted) {
+                      setDialogState(() => isSaving = false);
                     }
                   }
                 },
@@ -341,45 +391,58 @@ class _RoomListScreenState extends State<RoomListScreen> {
 
           return Column(
             children: [
-              // Thanh lọc trạng thái phòng nhanh chóng cho Admin
-              Container(
-                height: 60,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children:
-                      [
-                        'Tất cả',
-                        'Trống',
-                        'Đang thuê',
-                        'Đã đặt cọc',
-                        'Bảo trì',
-                      ].map((filter) {
-                        final isSelected = _selectedFilter == filter;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: ChoiceChip(
-                            label: Text(filter),
-                            selected: isSelected,
-                            selectedColor: const Color(0xFF2563EB),
-                            labelStyle: TextStyle(
-                              color: isSelected
-                                  ? Colors.white
-                                  : const Color(0xFF64748B),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                            backgroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            onSelected: (selected) {
-                              setState(() => _selectedFilter = filter);
-                            },
-                          ),
-                        );
-                      }).toList(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(17),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFF4F46E5), Color(0xFF818CF8)]),
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: const [BoxShadow(color: Color(0x224F46E5), blurRadius: 16, offset: Offset(0, 6))],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(children: [
+                        Icon(Icons.auto_awesome_rounded, color: Color(0xFFFFE082), size: 20),
+                        SizedBox(width: 8),
+                        Text('Tổng quan phòng trọ', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      ]),
+                      const SizedBox(height: 7),
+                      Text('${_currentRooms.length} phòng đang quản lý • ${_currentRooms.where((r) => (r['trangThai'] ?? r['status']) == 'Trống').length} phòng trống',
+                          style: const TextStyle(color: Color(0xFFE0E7FF), fontSize: 13)),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.tune_rounded, color: Color(0xFF4F46E5)),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Danh sách phòng', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF172554)))),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: const Color(0xFFC7D2FE)),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedFilter,
+                          borderRadius: BorderRadius.circular(16),
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF4F46E5)),
+                          items: ['Tất cả', 'Trống', 'Đang thuê', 'Đã đặt cọc', 'Bảo trì']
+                              .map((filter) => DropdownMenuItem(value: filter, child: Text(filter, style: const TextStyle(fontSize: 13))))
+                              .toList(),
+                          onChanged: (value) { if (value != null) setState(() => _selectedFilter = value); },
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Expanded(
@@ -430,9 +493,9 @@ class _RoomListScreenState extends State<RoomListScreen> {
                               elevation: 0,
                               margin: const EdgeInsets.only(bottom: 12),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(20),
                                 side: const BorderSide(
-                                  color: Color(0xFFE2E8F0),
+                                  color: Color(0xFFDCE4FA),
                                 ),
                               ),
                               child: InkWell(

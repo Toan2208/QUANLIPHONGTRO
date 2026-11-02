@@ -131,17 +131,17 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
               .toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: const Text(
           'Yêu cầu sửa chữa',
           style: TextStyle(
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
             fontWeight: FontWeight.bold,
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         actions: [
           IconButton(
@@ -291,7 +291,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                   child: Text(
                     'Yêu cầu #${id ?? '—'}',
                     style: const TextStyle(
-                      color: Color(0xFF2563EB),
+                      color: Color(0xFF4F46E5),
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -304,7 +304,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
             Text(
               (_value(request, 'noiDung', 'NoiDung') ?? 'Không có mô tả')
                   .toString(),
-              style: const TextStyle(color: Color(0xFF1E293B)),
+              style: const TextStyle(color: Color(0xFF172554)),
             ),
             const SizedBox(height: 12),
             _infoRow(Icons.person_outline, 'Mã khách', customerId.toString()),
@@ -372,7 +372,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Cập nhật xử lý'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
+                        backgroundColor: const Color(0xFF4F46E5),
                         foregroundColor: Colors.white,
                       ),
                     ),

@@ -226,26 +226,26 @@ class _RepairRequestScreenState extends State<RepairRequestScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: const Text(
           'Báo Cáo & Xử Lý Sửa Chữa',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18,
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: TabBar(
             controller: _tabController,
-            indicatorColor: const Color(0xFF2563EB),
-            labelColor: const Color(0xFF2563EB),
+            indicatorColor: const Color(0xFF4F46E5),
+            labelColor: const Color(0xFF4F46E5),
             unselectedLabelColor: const Color(0xFF64748B),
             tabs: const [
               Tab(
@@ -388,7 +388,7 @@ class _RepairRequestScreenState extends State<RepairRequestScreen>
             child: ElevatedButton(
               onPressed: _isSubmitting ? null : _submitRequest,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
+                backgroundColor: const Color(0xFF4F46E5),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -445,7 +445,7 @@ class _RepairRequestScreenState extends State<RepairRequestScreen>
     }
 
     return RefreshIndicator(
-      color: const Color(0xFF2563EB),
+      color: const Color(0xFF4F46E5),
       onRefresh: _loadHistory,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -505,7 +505,7 @@ class _RepairRequestScreenState extends State<RepairRequestScreen>
                     'Yêu cầu #${requestId > 0 ? requestId : index + 1}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF2563EB),
+                      color: Color(0xFF4F46E5),
                       fontSize: 15,
                     ),
                   ),
@@ -516,7 +516,7 @@ class _RepairRequestScreenState extends State<RepairRequestScreen>
             const Divider(height: 22),
             Text(
               content,
-              style: const TextStyle(color: Color(0xFF1E293B), fontSize: 14),
+              style: const TextStyle(color: Color(0xFF172554), fontSize: 14),
             ),
             const SizedBox(height: 12),
             _detailLine(Icons.meeting_room_outlined, 'Phòng', roomName),
@@ -620,7 +620,7 @@ class _RepairRequestScreenState extends State<RepairRequestScreen>
       ),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF2563EB)),
+          Icon(icon, color: const Color(0xFF4F46E5)),
           const SizedBox(width: 12),
           Expanded(child: Text(text)),
         ],
@@ -671,7 +671,7 @@ class _RepairRequestScreenState extends State<RepairRequestScreen>
   InputDecoration _inputDecoration(String hint, IconData icon) {
     return InputDecoration(
       hintText: hint,
-      prefixIcon: Icon(icon, color: const Color(0xFF2563EB), size: 20),
+      prefixIcon: Icon(icon, color: const Color(0xFF4F46E5), size: 20),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -679,10 +679,10 @@ class _RepairRequestScreenState extends State<RepairRequestScreen>
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+        borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 2),
       ),
       filled: true,
-      fillColor: const Color(0xFFF8FAFC),
+      fillColor: const Color(0xFFF5F7FC),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
     );
   }

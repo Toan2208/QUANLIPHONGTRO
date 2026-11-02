@@ -33,14 +33,14 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     final statusColor = _getStatusColor(trangThai);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: Text(
           'Chi Tiết $tenPhong',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1E293B)),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF172554)),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         centerTitle: true,
       ),
@@ -71,7 +71,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     children: [
                       Text(
                         tenPhong,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF172554)),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -108,7 +108,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                 height: 50,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
+                    backgroundColor: const Color(0xFF4F46E5),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
@@ -168,7 +168,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB)),
+                    Icon(Icons.info_outline_rounded, color: Color(0xFF4F46E5)),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -210,7 +210,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   Widget _buildInfoRow(IconData icon, String label, String value, {bool isHighlight = false}) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF2563EB), size: 22),
+        Icon(icon, color: const Color(0xFF4F46E5), size: 22),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
@@ -223,7 +223,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 15,
-            color: isHighlight ? const Color(0xFF2563EB) : const Color(0xFF1E293B),
+            color: isHighlight ? const Color(0xFF4F46E5) : const Color(0xFF172554),
           ),
         ),
       ],

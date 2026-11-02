@@ -47,11 +47,11 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: Text(widget.isAdmin ? 'Tin Nhắn & Thông Báo Khách' : 'Trò chuyện với Chủ Trọ', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         centerTitle: true,
       ),
@@ -62,7 +62,7 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
               future: _messagesFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)));
+                  return const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)));
                 }
                 final messages = snapshot.data ?? [];
                 if (messages.isEmpty) {
@@ -83,13 +83,13 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
                         margin: const EdgeInsets.only(bottom: 10),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
-                          color: isMe ? const Color(0xFF2563EB) : Colors.white,
+                          color: isMe ? const Color(0xFF4F46E5) : Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: isMe ? Colors.transparent : const Color(0xFFE2E8F0)),
                         ),
                         child: Text(
                           m['content'] ?? m['Content'] ?? '',
-                          style: TextStyle(color: isMe ? Colors.white : const Color(0xFF1E293B), fontSize: 14),
+                          style: TextStyle(color: isMe ? Colors.white : const Color(0xFF172554), fontSize: 14),
                         ),
                       ),
                     );
@@ -111,7 +111,7 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
                       hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
                       filled: true,
-                      fillColor: const Color(0xFFF8FAFC),
+                      fillColor: const Color(0xFFF5F7FC),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),
                   ),
@@ -119,7 +119,7 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
                 const SizedBox(width: 8),
                 IconButton(
                   onPressed: _sendMessage,
-                  icon: const Icon(Icons.send_rounded, color: Color(0xFF2563EB)),
+                  icon: const Icon(Icons.send_rounded, color: Color(0xFF4F46E5)),
                 ),
               ],
             ),

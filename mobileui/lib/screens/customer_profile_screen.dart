@@ -174,17 +174,17 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: const Text(
           'Thông tin cá nhân',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         actions: [
           IconButton(
@@ -244,7 +244,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                 backgroundColor: Color(0xFFEFF6FF),
                 child: Icon(
                   Icons.person_outline,
-                  color: Color(0xFF2563EB),
+                  color: Color(0xFF4F46E5),
                   size: 30,
                 ),
               ),
@@ -258,7 +258,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                           ? 'Khách thuê'
                           : _nameController.text.trim(),
                       style: const TextStyle(
-                        color: Color(0xFF1E293B),
+                        color: Color(0xFF172554),
                         fontWeight: FontWeight.bold,
                         fontSize: 17,
                       ),
@@ -380,7 +380,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           label: const Text('Đổi mật khẩu'),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(50),
-            foregroundColor: const Color(0xFF2563EB),
+            foregroundColor: const Color(0xFF4F46E5),
           ),
         ),
         const SizedBox(height: 10),
@@ -416,12 +416,12 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       children: [
         Row(
           children: [
-            Icon(icon, color: const Color(0xFF2563EB)),
+            Icon(icon, color: const Color(0xFF4F46E5)),
             const SizedBox(width: 8),
             Text(
               title,
               style: const TextStyle(
-                color: Color(0xFF1E293B),
+                color: Color(0xFF172554),
                 fontWeight: FontWeight.bold,
               ),
             ),

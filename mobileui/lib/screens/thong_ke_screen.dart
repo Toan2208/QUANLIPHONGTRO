@@ -160,18 +160,18 @@ class _ThongKeScreenState extends State<ThongKeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FB),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: const Text(
           'Báo cáo thống kê',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18,
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         actions: [
           IconButton(
@@ -187,7 +187,7 @@ class _ThongKeScreenState extends State<ThongKeScreen> {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
             return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+              child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
             );
           }
           if (snapshot.hasError || !snapshot.hasData) {
@@ -233,7 +233,7 @@ class _ThongKeScreenState extends State<ThongKeScreen> {
 
           return RefreshIndicator(
             onRefresh: _refresh,
-            color: const Color(0xFF2563EB),
+            color: const Color(0xFF4F46E5),
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
@@ -242,7 +242,7 @@ class _ThongKeScreenState extends State<ThongKeScreen> {
                   'Tình hình phòng trọ',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: const Color(0xFF172554),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -253,7 +253,7 @@ class _ThongKeScreenState extends State<ThongKeScreen> {
                         title: 'Tổng số phòng',
                         value: _formatCount(totalRooms),
                         icon: Icons.meeting_room_outlined,
-                        color: const Color(0xFF2563EB),
+                        color: const Color(0xFF4F46E5),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -300,7 +300,7 @@ class _ThongKeScreenState extends State<ThongKeScreen> {
                   'Tình hình tài chính',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: const Color(0xFF172554),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -384,7 +384,7 @@ class _MonthlyRevenueChart extends StatelessWidget {
           Text(
             'Doanh thu theo tháng năm $year',
             style: const TextStyle(
-              color: Color(0xFF1E293B),
+              color: Color(0xFF172554),
               fontWeight: FontWeight.bold,
               fontSize: 15,
             ),
@@ -554,7 +554,7 @@ class _OccupancyCard extends StatelessWidget {
               Text(
                 '${(occupancy * 100).toStringAsFixed(0)}%',
                 style: const TextStyle(
-                  color: Color(0xFF2563EB),
+                  color: Color(0xFF4F46E5),
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -567,7 +567,7 @@ class _OccupancyCard extends StatelessWidget {
               value: occupancy,
               minHeight: 9,
               backgroundColor: const Color(0xFFE2E8F0),
-              color: const Color(0xFF2563EB),
+              color: const Color(0xFF4F46E5),
             ),
           ),
           const SizedBox(height: 8),

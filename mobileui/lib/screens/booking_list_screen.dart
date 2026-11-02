@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'create_booking_screen.dart';
+import 'create_contract_screen.dart';
 
 class BookingListScreen extends StatefulWidget {
   const BookingListScreen({super.key});
@@ -162,6 +163,8 @@ class _BookingListScreenState extends State<BookingListScreen> {
   bool _isOverdue(Map booking) {
     if (_bookingStatus(booking) != 'Đã đặt cọc') return false;
     final expectedDate = _dateValue(booking, [
+      'ngayDuKienNhan',
+      'NgayDuKienNhan',
       'ngayDuKienNhanPhong',
       'NgayDuKienNhanPhong',
       'expectedDate',
@@ -285,6 +288,98 @@ class _BookingListScreenState extends State<BookingListScreen> {
     }
   }
 
+  Future<void> _openContractForBooking(Map booking) async {
+    final roomId = int.tryParse(
+      _value(booking, ['maPhong', 'MaPhong', 'roomId', 'RoomId']),
+    );
+    if (roomId == null || roomId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phiếu đặt chỗ chưa có mã phòng hợp lệ.')),
+      );
+      return;
+    }
+
+    setState(() => _isUpdating = true);
+    try {
+      final rooms = await ApiService.getRooms();
+      if (!mounted) return;
+      Map<String, dynamic>? selectedRoom;
+      for (final raw in rooms) {
+        if (raw is! Map) continue;
+        final id = int.tryParse(
+          _value(raw, ['maPhong', 'MaPhong', 'roomId', 'RoomId', 'id']),
+        );
+        if (id == roomId) {
+          selectedRoom = Map<String, dynamic>.from(raw);
+          break;
+        }
+      }
+      if (selectedRoom == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không tìm thấy phòng #$roomId trên hệ thống.')),
+        );
+        return;
+      }
+      selectedRoom['roomId'] = roomId;
+      selectedRoom['roomNumber'] ??= _value(
+        booking, ['tenPhong', 'TenPhong'], 'Phòng #$roomId',
+      );
+      selectedRoom['basePrice'] ??=
+          selectedRoom['giaThue'] ?? selectedRoom['GiaThue'] ?? 0;
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Tiếp tục nhận phòng?'),
+          content: Text(
+            'Bạn sẽ lập hợp đồng cho ${selectedRoom!['roomNumber']}. '
+            'Hãy kiểm tra đúng khách đã đặt cọc, tiền cọc và các điều khoản '
+            'trước khi xác nhận. Việc lập hợp đồng cần được backend xử lý '
+            'đồng bộ với phiếu đặt chỗ.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Để sau'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Lập hợp đồng'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+
+      final created = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CreateContractScreen(room: selectedRoom!),
+        ),
+      );
+      if (!mounted) return;
+      if (created == true) {
+        await _loadData();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Đã tạo hợp đồng. Hãy kiểm tra trạng thái phiếu đặt chỗ '
+              'và phòng đã được backend đồng bộ.'
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể mở màn hình lập hợp đồng: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _isUpdating = false);
+    }
+  }
+
   Future<void> _changeStatus(Map booking) async {
     final bookingId = int.tryParse(
       _value(booking, ['maDatPhong', 'MaDatPhong', 'bookingId', 'id']),
@@ -312,32 +407,66 @@ class _BookingListScreenState extends State<BookingListScreen> {
       return;
     }
 
-    final shouldProceed = await showDialog<bool>(
+    if (selectedStatus == currentStatus) return;
+    if (selectedStatus == 'Đã nhận phòng') {
+      if (currentStatus != 'Đã đặt cọc') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chỉ nhận phòng từ phiếu đang đặt cọc.')),
+        );
+        return;
+      }
+      await _openContractForBooking(booking);
+      return;
+    }
+    if (selectedStatus != 'Đã hủy') return;
+    if (currentStatus != 'Đã đặt cọc') {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Chỉ hủy được phiếu đang đặt cọc.'),
+      ));
+      return;
+    }
+    // Chỉ hiển thị ước tính. Backend là nơi tính tiền hoàn chính thức.
+    final expected = _dateValue(booking, [
+      'ngayDuKienNhan', 'NgayDuKienNhan',
+      'ngayDuKienNhanPhong', 'NgayDuKienNhanPhong',
+    ]);
+    final deposit = double.tryParse(
+      _value(booking, ['tienCoc', 'TienCoc', 'depositAmount'], '0'),
+    ) ?? 0;
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final days = expected == null ? null :
+        DateTime(expected.year, expected.month, expected.day)
+            .difference(todayDate).inDays;
+    final rate = days == null ? null : (days >= 7 ? 1.0 : days >= 3 ? 0.5 : 0.0);
+    final estimatedRefund = rate == null ? null : (deposit * rate).round();
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xác nhận đổi trạng thái'),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Xác nhận hủy đặt phòng'),
         content: Text(
-          selectedStatus == 'Đã nhận phòng'
-              ? currentStatus == selectedStatus
-                    ? 'Đồng bộ lại trạng thái phòng theo lượt đặt này?'
-                    : 'Xác nhận khách đã nhận phòng? Sau bước này, hãy tạo hợp đồng thuê cho khách.'
-              : selectedStatus == 'Đã hủy'
-              ? 'Xác nhận hủy lượt giữ chỗ này? Hãy đảm bảo đã xử lý khoản cọc theo thỏa thuận.'
-              : 'Chuyển lượt đặt phòng về trạng thái đang giữ chỗ?',
+          'Tiền cọc: ${_formatMoney(deposit.toString())}\n'
+          'Ngày dự kiến nhận: ${_formatDate(expected)}\n'
+          '${days == null ? 'Chưa xác định số ngày báo trước' : 'Báo trước: $days ngày'}\n'
+          '${rate == null ? 'Chưa xác định tỷ lệ hoàn' : 'Tỷ lệ hoàn: ${(rate * 100).toInt()}%'}\n'
+          '${estimatedRefund == null ? '' : 'Dự kiến hoàn: ${_formatMoney(estimatedRefund.toString())}\n'}'
+          '\nSố tiền chính thức do máy chủ tính tại thời điểm hủy. '
+          'Hành động này không thể hoàn tác.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Quay lại'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Xác nhận'),
+            onPressed: expected == null ? null :
+                () => Navigator.pop(dialogContext, true),
+            child: const Text('Xác nhận hủy'),
           ),
         ],
       ),
     );
-    if (shouldProceed != true || !mounted) return;
+    if (confirmed != true || !mounted) return;
 
     setState(() => _isUpdating = true);
     try {
@@ -349,7 +478,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
       if (result['success'] == true) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Đã cập nhật: $selectedStatus')));
+        ).showSnackBar(SnackBar(content: Text(result['message']?.toString() ?? 'Đã hủy đặt phòng.')));
         await _loadData();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -681,6 +810,8 @@ class _BookingCard extends StatelessWidget {
     );
     final expectedDate = DateTime.tryParse(
       value(booking, [
+        'ngayDuKienNhan',
+        'NgayDuKienNhan',
         'ngayDuKienNhanPhong',
         'NgayDuKienNhanPhong',
         'expectedDate',

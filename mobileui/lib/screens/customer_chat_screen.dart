@@ -155,16 +155,16 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
-        title: const Text('Thông Báo Từ Chủ Trọ & Trò Chuyện', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B))),
+        title: const Text('Thông Báo Từ Chủ Trọ & Trò Chuyện', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF172554))),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF2563EB)),
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF4F46E5)),
             tooltip: 'Tải lại tin nhắn',
             onPressed: () => _loadMessages(showLoading: true),
           ),
@@ -174,7 +174,7 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
         children: [
           Expanded(
             child: RefreshIndicator(
-              color: const Color(0xFF2563EB),
+              color: const Color(0xFF4F46E5),
               onRefresh: () => _loadMessages(showLoading: true),
               child: _isLoading && _messages.isEmpty
                   ? ListView(
@@ -183,7 +183,7 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                         SizedBox(height: 220),
                         Center(
                           child: CircularProgressIndicator(
-                            color: Color(0xFF2563EB),
+                            color: Color(0xFF4F46E5),
                           ),
                         ),
                       ],
@@ -263,7 +263,7 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                               decoration: BoxDecoration(
-                                color: fromAdmin ? Colors.white : const Color(0xFF2563EB),
+                                color: fromAdmin ? Colors.white : const Color(0xFF4F46E5),
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(color: fromAdmin ? const Color(0xFFE2E8F0) : Colors.transparent),
                               ),
@@ -273,11 +273,11 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                                   if (fromAdmin)
                                     const Padding(
                                       padding: EdgeInsets.only(bottom: 4.0),
-                                      child: Text('🏠 Thông báo từ Chủ Trọ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF2563EB))),
+                                      child: Text('🏠 Thông báo từ Chủ Trọ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF4F46E5))),
                                     ),
                                   Text(
                                     content,
-                                    style: TextStyle(color: fromAdmin ? const Color(0xFF1E293B) : Colors.white, fontSize: 14),
+                                    style: TextStyle(color: fromAdmin ? const Color(0xFF172554) : Colors.white, fontSize: 14),
                                   ),
                                 ],
                               ),
@@ -312,7 +312,7 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                       hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
                       filled: true,
-                      fillColor: const Color(0xFFF8FAFC),
+                      fillColor: const Color(0xFFF5F7FC),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),
                   ),
@@ -328,7 +328,7 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                         )
                       : const Icon(
                           Icons.send_rounded,
-                          color: Color(0xFF2563EB),
+                          color: Color(0xFF4F46E5),
                         ),
                 ),
               ],

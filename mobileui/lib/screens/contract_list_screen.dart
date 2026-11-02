@@ -265,53 +265,145 @@ class _ContractListScreenState extends State<ContractListScreen> {
     return 'Chưa gán khách thuê';
   }
 
-  void _confirmCheckOut(int contractId, String roomName) {
-    showDialog(
+  Future<void> _confirmCheckOut(
+    int contractId,
+    String roomName,
+    double deposit,
+  ) async {
+    final depositController = TextEditingController(
+      text: deposit.toStringAsFixed(0),
+    );
+    final penaltyController = TextEditingController(text: '0');
+    final noteController = TextEditingController(
+      text: 'Admin thanh lý trực tiếp',
+    );
+    bool isSaving = false;
+    await showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Xác nhận thanh lý trả phòng',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Xác nhận làm thủ tục kết thúc hợp đồng và quyết toán phòng $roomName?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Hủy',
-              style: TextStyle(color: Color(0xFF64748B)),
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Quyết toán trả phòng'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Hợp đồng #$contractId • Phòng $roomName'),
+                const SizedBox(height: 8),
+                Text('Tiền cọc hợp đồng: ${deposit.toStringAsFixed(0)} đ'),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: depositController,
+                  enabled: !isSaving,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Tiền cọc đưa vào quyết toán (VNĐ)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: penaltyController,
+                  enabled: !isSaving,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Tiền phạt (VNĐ)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteController,
+                  enabled: !isSaving,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Ghi chú thanh lý',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Server sẽ tự cấn trừ công nợ hóa đơn và tiền phạt, '
+                  'sau đó xác định số tiền thực hoàn cho khách.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+              ],
             ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
-              elevation: 0,
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+              child: const Text('Đóng'),
             ),
-            onPressed: () async {
-              Navigator.pop(context);
-              bool ok = await ApiService.checkOut(
-                contractId,
-                "Admin thanh lý trực tiếp",
-              );
-              if (ok && mounted) {
-                _showSnackBar('Thanh lý hợp đồng thành công!', isError: false);
-                _loadData();
-              } else if (mounted) {
-                _showSnackBar('Thanh lý hợp đồng thất bại!', isError: true);
-              }
-            },
-            child: const Text('Xác nhận trả'),
-          ),
-        ],
+            ElevatedButton(
+              onPressed: isSaving ? null : () async {
+                double? parseMoney(String text) => double.tryParse(
+                  text.trim().replaceAll(',', '').replaceAll(' ', ''),
+                );
+                final amount = parseMoney(depositController.text);
+                final penalty = parseMoney(penaltyController.text);
+                if (amount == null || !amount.isFinite || amount < 0 ||
+                    amount > deposit || penalty == null ||
+                    !penalty.isFinite || penalty < 0) {
+                  _showSnackBar(
+                    'Tiền quyết toán phải từ 0 đến tiền cọc; tiền phạt không âm.',
+                    isError: true,
+                  );
+                  return;
+                }
+                setDialogState(() => isSaving = true);
+                Map<String, dynamic> result;
+                try {
+                  result = await ApiService.checkOut(
+                    contractId: contractId,
+                    tienHoanCoc: amount,
+                    tienPhat: penalty,
+                    ghiChu: noteController.text,
+                  );
+                } catch (error) {
+                  if (!mounted || !dialogContext.mounted) return;
+                  setDialogState(() => isSaving = false);
+                  _showSnackBar('Không thể thanh lý: $error', isError: true);
+                  return;
+                }
+                if (!mounted || !dialogContext.mounted) return;
+                if (result['success'] == true) {
+                  Navigator.pop(dialogContext);
+                  _showSnackBar(
+                    result['message']?.toString() ?? 'Thanh lý thành công!',
+                  );
+                  _loadData();
+                } else {
+                  setDialogState(() => isSaving = false);
+                  _showSnackBar(
+                    result['message']?.toString() ?? 'Thanh lý thất bại.',
+                    isError: true,
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4F46E5),
+                foregroundColor: Colors.white,
+              ),
+              child: Text(isSaving ? 'Đang xử lý...' : 'Xác nhận thanh lý'),
+            ),
+          ],
+        ),
       ),
     );
+    // Chờ animation đóng Dialog kết thúc rồi mới giải phóng controller.
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    depositController.dispose();
+    penaltyController.dispose();
+    noteController.dispose();
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -569,8 +661,8 @@ class _ContractListScreenState extends State<ContractListScreen> {
                                           ),
                                           decoration: BoxDecoration(
                                             color: isActive
-                                                ? Colors.green.withOpacity(0.1)
-                                                : Colors.grey.withOpacity(0.1),
+                                                ? Colors.green.withValues(alpha: 0.1)
+                                                : Colors.grey.withValues(alpha: 0.1),
                                             borderRadius: BorderRadius.circular(
                                               20,
                                             ),
@@ -602,14 +694,14 @@ class _ContractListScreenState extends State<ContractListScreen> {
                                           color: Color(0xFF64748B),
                                         ),
                                         const SizedBox(width: 8),
-                                        Text(
+                                        Expanded(child: Text(
                                           'Khách thuê đại diện: $customerName',
                                           style: const TextStyle(
                                             color: Color(0xFF1E293B),
                                             fontWeight: FontWeight.w600,
                                             fontSize: 14,
                                           ),
-                                        ),
+                                        )),
                                       ],
                                     ),
                                     const SizedBox(height: 6),
@@ -621,19 +713,21 @@ class _ContractListScreenState extends State<ContractListScreen> {
                                           color: Color(0xFF2563EB),
                                         ),
                                         const SizedBox(width: 8),
-                                        Text(
+                                        Expanded(child: Text(
                                           'Tiền thuê: $monthlyRent đ | Cọc: $deposit đ',
                                           style: const TextStyle(
                                             color: Color(0xFF2563EB),
                                             fontWeight: FontWeight.bold,
                                             fontSize: 13,
                                           ),
-                                        ),
+                                        )),
                                       ],
                                     ),
                                     const SizedBox(height: 12),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
+                                    Wrap(
+                                      alignment: WrapAlignment.end,
+                                      spacing: 8,
+                                      runSpacing: 8,
                                       children: [
                                         OutlinedButton.icon(
                                           style: OutlinedButton.styleFrom(
@@ -715,8 +809,9 @@ class _ContractListScreenState extends State<ContractListScreen> {
                                               ),
                                             ),
                                             onPressed: () => _confirmCheckOut(
-                                              contractId,
-                                              roomName,
+                                              int.tryParse(contractId.toString()) ?? 0,
+                                              roomName.toString(),
+                                              double.tryParse(deposit.toString()) ?? 0,
                                             ),
                                           ),
                                       ],

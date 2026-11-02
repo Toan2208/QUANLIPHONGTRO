@@ -363,18 +363,18 @@ class _ViPhamScreenState extends State<ViPhamScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FB),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: const Text(
           'Vi phạm nội quy',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18,
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         actions: [
           IconButton(
@@ -385,7 +385,7 @@ class _ViPhamScreenState extends State<ViPhamScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF2563EB),
+        backgroundColor: const Color(0xFF4F46E5),
         foregroundColor: Colors.white,
         onPressed: _showCreateViolation,
         icon: const Icon(Icons.add_alert_rounded),
@@ -397,7 +397,7 @@ class _ViPhamScreenState extends State<ViPhamScreen> {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
             return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+              child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
             );
           }
           if (snapshot.hasError) {
@@ -424,7 +424,7 @@ class _ViPhamScreenState extends State<ViPhamScreen> {
 
           return RefreshIndicator(
             onRefresh: _reload,
-            color: const Color(0xFF2563EB),
+            color: const Color(0xFF4F46E5),
             child: violations.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -542,7 +542,7 @@ class _ViPhamScreenState extends State<ViPhamScreen> {
                                             room,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
-                                              color: Color(0xFF1E293B),
+                                              color: Color(0xFF172554),
                                             ),
                                           ),
                                           const SizedBox(height: 3),
@@ -717,7 +717,7 @@ class _CreateViolationSheetState extends State<_CreateViolationSheet> {
                   style: TextStyle(
                     fontSize: 19,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B),
+                    color: Color(0xFF172554),
                   ),
                 ),
                 const SizedBox(height: 18),

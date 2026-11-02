@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 import '../services/api_service.dart';
 import 'customer_history_screen.dart';
 
@@ -47,18 +48,18 @@ class _CustomerInvoiceScreenState extends State<CustomerInvoiceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: const Text(
           'Hóa Đơn Hàng Tháng',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18,
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         centerTitle: true,
         actions: [
@@ -79,7 +80,7 @@ class _CustomerInvoiceScreenState extends State<CustomerInvoiceScreen> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+              child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
             )
           : _loadError != null
           ? Center(
@@ -128,7 +129,7 @@ class _CustomerInvoiceScreenState extends State<CustomerInvoiceScreen> {
               ),
             )
           : RefreshIndicator(
-              color: const Color(0xFF2563EB),
+              color: const Color(0xFF4F46E5),
               onRefresh: () async => _loadInvoices(),
               child: ListView.builder(
                 padding: const EdgeInsets.all(16),
@@ -207,7 +208,7 @@ class _CustomerInvoiceScreenState extends State<CustomerInvoiceScreen> {
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
-                                      color: Color(0xFF1E293B),
+                                      color: Color(0xFF172554),
                                     ),
                                   ),
                                   const SizedBox(height: 4),
@@ -216,7 +217,7 @@ class _CustomerInvoiceScreenState extends State<CustomerInvoiceScreen> {
                                         ? 'Đã thanh toán: ${_formatPaymentAmount(tongTien)}'
                                         : 'Còn phải trả: ${_formatPaymentAmount(conLai)}',
                                     style: const TextStyle(
-                                      color: Color(0xFF2563EB),
+                                      color: Color(0xFF4F46E5),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 14,
                                     ),
@@ -303,6 +304,7 @@ class InvoiceDetailScreen extends StatelessWidget {
         )
         .toList();
     final penaltyTotal = _invoicePenaltyTotal(invoice, violations);
+    final invoiceId = int.tryParse((invoice['maHoaDon'] ?? invoice['MaHoaDon'] ?? '').toString());
 
     const bankId = 'VCB';
     const accountNo = '1234567890';
@@ -311,18 +313,18 @@ class InvoiceDetailScreen extends StatelessWidget {
         'https://img.vietqr.io/image/$bankId-$accountNo-compact2.png?amount=${conLai.round()}&addInfo=Thanh%20toan%20HD%20thang%20$thang%20nam%20$nam&accountName=$accountName';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F7FC),
       appBar: AppBar(
         title: Text(
           'Chi Tiết Hóa Đơn Tháng $thang/$nam',
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18,
-            color: Color(0xFF1E293B),
+            color: Color(0xFF172554),
           ),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: const Color(0xFF172554),
         elevation: 0,
         centerTitle: true,
       ),
@@ -331,6 +333,11 @@ class InvoiceDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // PDF được lấy từ API backend, kèm cookie đăng nhập.
+            if (invoiceId != null && invoiceId > 0) ...[
+              _InvoicePdfActions(invoiceId: invoiceId),
+              const SizedBox(height: 18),
+            ],
             // Thẻ thông tin hóa đơn
             Container(
               padding: const EdgeInsets.all(20),
@@ -350,7 +357,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
+                          color: Color(0xFF172554),
                         ),
                       ),
                       Container(
@@ -392,7 +399,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
-                          color: Color(0xFF1E293B),
+                          color: Color(0xFF172554),
                         ),
                       ),
                     ],
@@ -406,7 +413,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E293B),
+                        color: Color(0xFF172554),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -448,7 +455,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                                 style: TextStyle(
                                   color: isViolation
                                       ? Colors.deepOrange
-                                      : const Color(0xFF1E293B),
+                                      : const Color(0xFF172554),
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -480,7 +487,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
+                          color: Color(0xFF172554),
                         ),
                       ),
                       Text(
@@ -541,7 +548,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
+                  color: Color(0xFF172554),
                 ),
               ),
               const SizedBox(height: 12),
@@ -568,7 +575,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                               width: 200,
                               child: Center(
                                 child: CircularProgressIndicator(
-                                  color: Color(0xFF2563EB),
+                                  color: Color(0xFF4F46E5),
                                 ),
                               ),
                             );
@@ -605,6 +612,84 @@ class InvoiceDetailScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+// Hai thao tác PDF: xem trước trong ứng dụng và mở bảng lưu/chia sẻ.
+class _InvoicePdfActions extends StatefulWidget {
+  final int invoiceId;
+  const _InvoicePdfActions({required this.invoiceId});
+
+  @override
+  State<_InvoicePdfActions> createState() => _InvoicePdfActionsState();
+}
+
+class _InvoicePdfActionsState extends State<_InvoicePdfActions> {
+  bool _busy = false;
+
+  Future<void> _handlePdf({required bool preview}) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final bytes = await ApiService.downloadInvoicePdf(widget.invoiceId);
+      if (!mounted) return;
+      final filename = 'HoaDon_${widget.invoiceId}.pdf';
+      if (preview) {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => Scaffold(
+              appBar: AppBar(title: Text('Hóa đơn #${widget.invoiceId}')),
+              body: PdfPreview(
+                build: (_) async => bytes,
+                pdfFileName: filename,
+                allowPrinting: true,
+                allowSharing: true,
+              ),
+            ),
+          ),
+        );
+      } else {
+        // Android/iOS mở bảng chia sẻ, có thể chọn ứng dụng lưu file.
+        await Printing.sharePdf(bytes: bytes, filename: filename);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể xử lý PDF: $error'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _busy ? null : () => _handlePdf(preview: true),
+          icon: const Icon(Icons.picture_as_pdf_outlined),
+          label: const Text('Xem PDF hóa đơn'),
+        ),
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          onPressed: _busy ? null : () => _handlePdf(preview: false),
+          icon: _busy
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.download_rounded),
+          label: Text(_busy ? 'Đang tải PDF...' : 'Lưu / chia sẻ PDF'),
+        ),
+      ],
     );
   }
 }
@@ -694,7 +779,7 @@ String _invoiceItemDescription(Map<String, dynamic> item) {
 Widget _invoiceAmountRow(
   String title,
   String amount, {
-  Color valueColor = const Color(0xFF1E293B),
+  Color valueColor = const Color(0xFF172554),
 }) {
   return Padding(
     padding: const EdgeInsets.only(bottom: 8),
@@ -819,7 +904,7 @@ class _PaymentConfirmationButtonState
       height: 50,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF2563EB),
+          backgroundColor: const Color(0xFF4F46E5),
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -872,7 +957,7 @@ class PaymentSuccessScreen extends StatelessWidget {
           title: const Text('Kết quả thanh toán'),
           centerTitle: true,
           backgroundColor: const Color(0xFFEEF5FF),
-          foregroundColor: const Color(0xFF1E293B),
+          foregroundColor: const Color(0xFF172554),
           elevation: 0,
           leading: IconButton(
             tooltip: 'Quay lại hóa đơn',
@@ -891,7 +976,7 @@ class PaymentSuccessScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF1E293B).withValues(alpha: 0.08),
+                    color: const Color(0xFF172554).withValues(alpha: 0.08),
                     blurRadius: 24,
                     offset: const Offset(0, 8),
                   ),
@@ -920,7 +1005,7 @@ class PaymentSuccessScreen extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 20,
-                      color: Color(0xFF1E293B),
+                      color: Color(0xFF172554),
                     ),
                   ),
                   const SizedBox(height: 12),
